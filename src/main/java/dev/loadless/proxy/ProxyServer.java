@@ -138,7 +138,8 @@ public class ProxyServer {
     private void handleClient(Socket client) {
         logger.log("[Proxy] Попытка запроса от " + client.getRemoteSocketAddress());
         try (client) {
-            client.setSoTimeout(5000);
+            // Увеличиваем таймаут ожидания для долгой прогрузки (например, 60 секунд)
+            client.setSoTimeout(60000);
             InputStream in = client.getInputStream();
             OutputStream out = client.getOutputStream();
             // Читаем handshake
@@ -148,7 +149,9 @@ public class ProxyServer {
             int state = handshake[handshake.length - 1] & 0xFF;
             if (state == 1) { // status (ping)
                 // Читаем следующий пакет (status request)
-                int nextPacketLen = readVarInt(in);
+                @SuppressWarnings("unused")
+                int nextPacketLen = readVarInt(in); // ОБЯЗАТЕЛЬНО читать VarInt длины!
+                
                 int packetId = in.read();
                 if (packetId == 0x00) {
                     logger.log("[Proxy] Ping-запрос (MOTD) от " + client.getRemoteSocketAddress());
@@ -157,13 +160,10 @@ public class ProxyServer {
                     String versionName = configManager.getVersionName();
                     int versionProtocol = configManager.getVersionProtocol();
                     int[] real = null;
-                    boolean offline = false;
                     try {
                         real = getRealServerPlayers();
                     } catch (Exception e) {
-                        if (e.getMessage() != null && e.getMessage().contains("Connection refused")) {
-                            offline = true;
-                        }
+                        logger.log(e.getMessage());
                     }
                     int playersOnline, playersMax;
                     if (real != null) {
@@ -211,13 +211,47 @@ public class ProxyServer {
                     return;
                 }
             }
-            // Не ping — сразу проксируем handshake + всё остальное
-            java.io.SequenceInputStream fullIn = new java.io.SequenceInputStream(
-                new java.io.ByteArrayInputStream(encodeVarInt(packetLen, handshake)), in);
+            // --- Логирование входа игрока ---
+            int loginLen = readVarInt(in);
+            byte[] loginPacket = in.readNBytes(loginLen);
+            if (loginPacket.length > 0 && loginPacket[0] == 0x00) {
+                int offset = 1;
+                int nameLen = 0;
+                int shift = 0;
+                do {
+                    nameLen |= (loginPacket[offset] & 0x7F) << shift;
+                    shift += 7;
+                } while ((loginPacket[offset++] & 0x80) != 0);
+                String name = new String(loginPacket, offset, nameLen, java.nio.charset.StandardCharsets.UTF_8);
+                offset += nameLen;
+                String uuid = "-";
+                if (loginPacket.length >= offset + 16) {
+                    byte[] uuidBytes = new byte[16];
+                    System.arraycopy(loginPacket, offset, uuidBytes, 0, 16);
+                    uuid = bytesToHex(uuidBytes);
+                }
+                logger.log("[Proxy] Игрок подключился: " + name + " (UUID: " + uuid + ")");
+            }
+            // Не ping — проксируем handshake + login start + всё остальное
+            InputStream fullIn = new java.io.SequenceInputStream(
+                new java.io.SequenceInputStream(
+                    new java.io.ByteArrayInputStream(encodeVarInt(packetLen, handshake)),
+                    new java.io.ByteArrayInputStream(encodeVarInt(loginLen, loginPacket))
+                ),
+                in
+            );
             proxyToRealServer(client, fullIn, out);
         } catch (Exception e) {
             logger.error("[Proxy] Ошибка клиента (" + client.getRemoteSocketAddress() + "): " + e.getMessage());
         }
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 
     private byte[] encodeVarInt(int len, byte[] data) {
@@ -237,7 +271,9 @@ public class ProxyServer {
 
     private void proxyToRealServer(Socket client, InputStream clientIn, OutputStream clientOut) {
         try (Socket server = new Socket(realHost, realPort)) {
-            server.setSoTimeout(5000);
+            // Увеличиваем таймауты для обеих сторон (например, 60 секунд)
+            server.setSoTimeout(60000);
+            client.setSoTimeout(60000);
             logger.log("[Proxy] Проксируем к реальному серверу: " + realHost + ":" + realPort);
             OutputStream serverOut = server.getOutputStream();
             InputStream serverIn = server.getInputStream();

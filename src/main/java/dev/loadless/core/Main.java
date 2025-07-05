@@ -67,7 +67,7 @@ public class Main {
                 new Thread(() -> {
                     Scanner scanner = new Scanner(System.in);
                     while (true) {
-                        System.out.print("> ");
+                        if (!scanner.hasNextLine()) break;
                         String line = scanner.nextLine();
                         if (line == null) break;
                         String result = cmdManager.execute(line);
