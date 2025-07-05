@@ -177,32 +177,19 @@ public class ProxyServer {
                 int packetId = in.read();
                 if (packetId == 0x00) {
                     logger.log("[Proxy] Ping-запрос (MOTD) от " + client.getRemoteSocketAddress());
-                    String favicon = getFaviconBase64();
-                    String motdJson;
-                    String versionName = configManager.getVersionName();
-                    int versionProtocol = configManager.getVersionProtocol();
-                    int[] real = null;
-                    try {
-                        real = getRealServerPlayers();
-                    } catch (Exception e) {
-                        logger.log(e.getMessage());
-                    }
-                    int playersOnline, playersMax;
-                    if (real != null) {
-                        playersOnline = real[0];
-                        playersMax = real[1];
-                    } else {
-                        playersOnline = configManager.getPlayersOnline();
-                        playersMax = configManager.getPlayersMax();
-                    }
+                    // --- MOTD и онлайн всегда кастомные ---
+                    int playersOnline = configManager.getPlayersOnline();
+                    int playersMax = configManager.getPlayersMax();
                     String playersSample = "[]";
                     String versionBlock;
-                    if (real == null && lastGetRealServerPlayersError != null && lastGetRealServerPlayersError.contains("Connection refused")) {
+                    if (lastGetRealServerPlayersError != null && lastGetRealServerPlayersError.contains("Connection refused")) {
                         String offlineFlag = configManager.getOfflineFlag();
                         versionBlock = "\"version\":{\"name\":\"" + offlineFlag + "\",\"protocol\":999},";
                     } else {
-                        versionBlock = "\"version\":{\"name\":\"" + versionName + "\",\"protocol\":" + versionProtocol + "},";
+                        versionBlock = "\"version\":{\"name\":\"" + configManager.getVersionName() + "\",\"protocol\":" + configManager.getVersionProtocol() + "},";
                     }
+                    String favicon = getFaviconBase64();
+                    String motdJson;
                     if (favicon != null) {
                         String safeFavicon = favicon.replace("\\", "\\\\").replace("\"", "\\\"");
                         motdJson = "{" +
@@ -408,5 +395,21 @@ public class ProxyServer {
     // Метод для получения копии списка пользователей (например, для команды list)
     public Map<String, ConnectedUser> getConnectedUsers() {
         return new java.util.HashMap<>(connectedUsers);
+    }
+
+    // Отключение пользователя по нику (или UUID)
+    public boolean kickUser(String nameOrUuid) {
+        ConnectedUser user = connectedUsers.values().stream()
+                .filter(u -> u.name.equalsIgnoreCase(nameOrUuid) || u.uuid.equalsIgnoreCase(nameOrUuid))
+                .findFirst().orElse(null);
+        if (user != null) {
+            try {
+                user.socket.close();
+            } catch (Exception ignored) {}
+            connectedUsers.remove(user.name);
+            logger.log("[Proxy] Игрок был отключён через kick: " + user.name + " (UUID: " + user.uuid + ")");
+            return true;
+        }
+        return false;
     }
 }

@@ -7,6 +7,8 @@ import dev.loadless.manager.ModulesManager;
 import dev.loadless.modules.ModuleLoader;
 import dev.loadless.proxy.ProxyServer;
 import dev.loadless.proxy.MotdManager;
+import dev.loadless.core.command.ListUsersCommand;
+import dev.loadless.core.command.KickUserCommand;
 
 import java.io.File;
 import java.util.Scanner;
@@ -61,6 +63,10 @@ public class Main {
                         return null;
                     }
                 });
+                // list
+                cmdManager.register(new ListUsersCommand(proxyServer));
+                // kick
+                cmdManager.register(new KickUserCommand(proxyServer));
                 // TODO: регистрация команд от модулей (см. ниже)
 
                 // Поток для чтения команд
