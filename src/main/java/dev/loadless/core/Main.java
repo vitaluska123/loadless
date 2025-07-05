@@ -1,5 +1,6 @@
 package dev.loadless.core;
 
+import dev.loadless.api.ConsoleCommand;
 import dev.loadless.config.ConfigManager;
 import dev.loadless.manager.EulaManager;
 import dev.loadless.manager.ModulesManager;
@@ -8,6 +9,7 @@ import dev.loadless.proxy.ProxyServer;
 import dev.loadless.proxy.MotdManager;
 
 import java.io.File;
+import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
@@ -33,7 +35,47 @@ public class Main {
                 int realPort = configManager.getRealServerPort();
                 MotdManager motdManager = new MotdManager(configManager);
                 ProxyServer proxyServer = new ProxyServer(host, port, motdManager, logger, realHost, realPort, configManager);
-                proxyServer.start(); 
+                proxyServer.start();
+
+                // --- Console commands ---
+                ConsoleCommandManager cmdManager = new ConsoleCommandManager();
+                // help
+                cmdManager.register(new ConsoleCommand() {
+                    public String getName() { return "help"; }
+                    public String getDescription() { return "Показать список команд"; }
+                    public String execute(String[] args) {
+                        StringBuilder sb = new StringBuilder("Доступные команды:\n");
+                        for (ConsoleCommand c : cmdManager.getAll()) {
+                            sb.append(c.getName()).append(" - ").append(c.getDescription()).append("\n");
+                        }
+                        return sb.toString();
+                    }
+                });
+                // quit
+                cmdManager.register(new ConsoleCommand() {
+                    public String getName() { return "quit"; }
+                    public String getDescription() { return "Завершить работу прокси"; }
+                    public String execute(String[] args) {
+                        logger.log("[Core] Завершение работы по команде quit");
+                        System.exit(0);
+                        return null;
+                    }
+                });
+                // TODO: регистрация команд от модулей (см. ниже)
+
+                // Поток для чтения команд
+                new Thread(() -> {
+                    Scanner scanner = new Scanner(System.in);
+                    while (true) {
+                        System.out.print("> ");
+                        String line = scanner.nextLine();
+                        if (line == null) break;
+                        String result = cmdManager.execute(line);
+                        if (result != null && !result.isEmpty()) {
+                            System.out.println(result);
+                        }
+                    }
+                }, "Console-Input").start();
             } catch (Exception e) {
                 logger.log("[Core] Ошибка при инициализации: " + e.getMessage());
             }
