@@ -1,0 +1,40 @@
+plugins {
+    id 'java'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+    id 'application'
+}
+
+group = 'dev.loadless'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+def supportedJavaVersions = [17, 18, 19, 20, 21, 22, 23, 24]
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+    sourceCompatibility = '17'
+    targetCompatibility = '17'
+}
+
+jar {
+    manifest {
+        attributes(
+            'Main-Class': 'dev.loadless.Main'
+        )
+    }
+}
+
+shadowJar {
+    archiveBaseName.set('loadless')
+    archiveClassifier.set('')
+    archiveVersion.set(version)
+}
+
+mainClassName = 'dev.loadless.Main'
+
+test {
+    useJUnitPlatform()
+}
