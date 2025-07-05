@@ -20,19 +20,24 @@ public class Main {
             }
             // Инициализация логгера и остальных компонентов только после принятия EULA
             Logger logger = new Logger();
-            logger.log("Loadless proxy server starting...");
-            ModulesManager modulesManager = new ModulesManager();
-            modulesManager.createModulesDir();
-            ConfigManager configManager = new ConfigManager(logger);
-            ModuleLoader moduleLoader = new ModuleLoader(new File("modules"), configManager);
-            moduleLoader.loadModules();
-            String host = configManager.getCoreHost();
-            int port = configManager.getCorePort();
-            String realHost = configManager.getRealServerHost();
-            int realPort = configManager.getRealServerPort();
-            MotdManager motdManager = new MotdManager(configManager);
-            ProxyServer proxyServer = new ProxyServer(host, port, motdManager, logger, realHost, realPort, configManager);
-            proxyServer.start();
+            logger.log("[Core] Loadless proxy server starting...");
+            try{
+                ModulesManager modulesManager = new ModulesManager();
+                modulesManager.createModulesDir();
+                ConfigManager configManager = new ConfigManager(logger);
+                ModuleLoader moduleLoader = new ModuleLoader(new File("modules"), configManager);
+                moduleLoader.loadModules();
+                String host = configManager.getCoreHost();
+                int port = configManager.getCorePort();
+                String realHost = configManager.getRealServerHost();
+                int realPort = configManager.getRealServerPort();
+                MotdManager motdManager = new MotdManager(configManager);
+                ProxyServer proxyServer = new ProxyServer(host, port, motdManager, logger, realHost, realPort, configManager);
+                proxyServer.start(); 
+            } catch (Exception e) {
+                logger.log("[Core] Ошибка при инициализации: " + e.getMessage());
+            }
+            
         } catch (Exception e) {
             System.err.println("Ошибка при инициализации: " + e.getMessage());
         }

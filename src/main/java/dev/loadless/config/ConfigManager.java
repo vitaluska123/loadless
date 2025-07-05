@@ -7,6 +7,8 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.File;
 import dev.loadless.core.Logger;
+import java.security.SecureRandom;
+import java.math.BigInteger;
 
 public class ConfigManager {
     private static final String CONFIG_FILE = "config.xml";
@@ -21,7 +23,17 @@ public class ConfigManager {
             createDefaultConfig();
         }
         loadConfig();
+        // Генерация ключа при первом запуске
+        if (getAuthKey() == null || getAuthKey().isEmpty()) {
+            String key = generateRandomKey(48);
+            setAuthKey(key);
+            logger.log("[Config] Сгенерирован новый authKey: " + key);
+        }
         logger.log("[Config] Конфиг загружен из " + configFile.getAbsolutePath());
+    }
+    private String generateRandomKey(int length) {
+        SecureRandom random = new SecureRandom();
+        return new BigInteger(length * 5, random).toString(32);
     }
 
     private void createDefaultConfig() throws Exception {
@@ -51,6 +63,10 @@ public class ConfigManager {
         Element motd = configDoc.createElement("motd");
         motd.setTextContent("§aLoadless Proxy Server");
         core.appendChild(motd);
+        // <authKey>
+        Element authKey = configDoc.createElement("authKey");
+        authKey.setTextContent(""); // будет сгенерирован при первом запуске
+        core.appendChild(authKey);
         rootElement.appendChild(core);
         // <realServer>
         Element realServer = configDoc.createElement("realServer");
@@ -64,6 +80,12 @@ public class ConfigManager {
         // <modules>
         Element modules = configDoc.createElement("modules");
         rootElement.appendChild(modules);
+        // <localize>
+        Element localize = configDoc.createElement("localize");
+        Element offline = configDoc.createElement("offline");
+        offline.setTextContent("offline");
+        localize.appendChild(offline);
+        rootElement.appendChild(localize);
         saveConfig();
     }
 
@@ -136,6 +158,25 @@ public class ConfigManager {
         Element el = getElementByTagChain("realServer", "port");
         try { return el != null ? Integer.parseInt(el.getTextContent()) : 25566; } catch (Exception e) { return 25566; }
     }
+    public String getAuthKey() {
+        Element el = getElementByTagChain("core", "authKey");
+        return el != null ? el.getTextContent() : null;
+    }
+    public void setAuthKey(String value) throws TransformerException {
+        Element core = getElementByTagChain("core");
+        if (core != null) {
+            NodeList list = core.getElementsByTagName("authKey");
+            Element el;
+            if (list.getLength() > 0) {
+                el = (Element) list.item(0);
+            } else {
+                el = configDoc.createElement("authKey");
+                core.appendChild(el);
+            }
+            el.setTextContent(value);
+            saveConfig();
+        }
+    }
 
     // Модули теперь в <modules><module name="..."></module></modules>
     public Element getOrCreateModuleConfig(String moduleName) {
@@ -183,5 +224,33 @@ public class ConfigManager {
         param.setTextContent(value);
         saveConfig();
         if (logger != null) logger.log("[Config] Параметр модуля '" + moduleName + "' -> " + key + " = " + value);
+    }
+    public String getOfflineFlag() {
+        Element el = getElementByTagChain("localize", "offline");
+        return el != null ? el.getTextContent() : "offline";
+    }
+    public void setOfflineFlag(String value) throws TransformerException {
+        Element localize = getOrCreateLocalize();
+        NodeList list = localize.getElementsByTagName("offline");
+        Element el;
+        if (list.getLength() > 0) {
+            el = (Element) list.item(0);
+        } else {
+            el = configDoc.createElement("offline");
+            localize.appendChild(el);
+        }
+        el.setTextContent(value);
+        saveConfig();
+    }
+    private Element getOrCreateLocalize() {
+        NodeList list = configDoc.getElementsByTagName("localize");
+        Element localize;
+        if (list.getLength() > 0) {
+            localize = (Element) list.item(0);
+        } else {
+            localize = configDoc.createElement("localize");
+            configDoc.getDocumentElement().appendChild(localize);
+        }
+        return localize;
     }
 }

@@ -77,8 +77,12 @@ public class ProxyServer {
         return null;
     }
 
+    // Для хранения последней ошибки getRealServerPlayers
+    private String lastGetRealServerPlayersError = null;
+
     private int[] getRealServerPlayers() {
         // Возвращает [online, max] или null если не удалось
+        lastGetRealServerPlayersError = null;
         try (Socket server = new Socket(realHost, realPort)) {
             server.setSoTimeout(2000);
             OutputStream out = server.getOutputStream();
@@ -113,6 +117,7 @@ public class ProxyServer {
             max = extractJsonInt(json, "\"max\":");
             if (online >= 0 && max >= 0) return new int[]{online, max};
         } catch (Exception e) {
+            lastGetRealServerPlayersError = e.getMessage();
             logger.log("[Proxy] Не удалось получить онлайн с реального сервера: " + e.getMessage());
         }
         return null;
@@ -151,7 +156,15 @@ public class ProxyServer {
                     String motdJson;
                     String versionName = configManager.getVersionName();
                     int versionProtocol = configManager.getVersionProtocol();
-                    int[] real = getRealServerPlayers();
+                    int[] real = null;
+                    boolean offline = false;
+                    try {
+                        real = getRealServerPlayers();
+                    } catch (Exception e) {
+                        if (e.getMessage() != null && e.getMessage().contains("Connection refused")) {
+                            offline = true;
+                        }
+                    }
                     int playersOnline, playersMax;
                     if (real != null) {
                         playersOnline = real[0];
@@ -161,16 +174,23 @@ public class ProxyServer {
                         playersMax = configManager.getPlayersMax();
                     }
                     String playersSample = "[]";
+                    String versionBlock;
+                    if (real == null && lastGetRealServerPlayersError != null && lastGetRealServerPlayersError.contains("Connection refused")) {
+                        String offlineFlag = configManager.getOfflineFlag();
+                        versionBlock = "\"version\":{\"name\":\"" + offlineFlag + "\",\"protocol\":999},";
+                    } else {
+                        versionBlock = "\"version\":{\"name\":\"" + versionName + "\",\"protocol\":" + versionProtocol + "},";
+                    }
                     if (favicon != null) {
                         String safeFavicon = favicon.replace("\\", "\\\\").replace("\"", "\\\"");
                         motdJson = "{" +
-                                "\"version\":{\"name\":\"" + versionName + "\",\"protocol\":" + versionProtocol + "}," +
+                                versionBlock +
                                 "\"players\":{\"max\":" + playersMax + ",\"online\":" + playersOnline + ",\"sample\":" + playersSample + "}," +
                                 "\"description\":{\"text\":\"" + motdManager.getMotd() + "\"}," +
                                 "\"favicon\":\"" + safeFavicon + "\"}";
                     } else {
                         motdJson = "{" +
-                                "\"version\":{\"name\":\"" + versionName + "\",\"protocol\":" + versionProtocol + "}," +
+                                versionBlock +
                                 "\"players\":{\"max\":" + playersMax + ",\"online\":" + playersOnline + ",\"sample\":" + playersSample + "}," +
                                 "\"description\":{\"text\":\"" + motdManager.getMotd() + "\"}" +
                                 "}";
@@ -221,19 +241,19 @@ public class ProxyServer {
             logger.log("[Proxy] Проксируем к реальному серверу: " + realHost + ":" + realPort);
             OutputStream serverOut = server.getOutputStream();
             InputStream serverIn = server.getInputStream();
-            // Просто пересылаем всё между клиентом и сервером
-            Thread t1 = new Thread(() -> forward(clientIn, serverOut));
-            Thread t2 = new Thread(() -> forward(serverIn, clientOut));
+            Thread t1 = new Thread(() -> forward(clientIn, serverOut, "client->server"));
+            Thread t2 = new Thread(() -> forward(serverIn, clientOut, "server->client"));
             t1.start();
             t2.start();
             t1.join();
             t2.join();
+            logger.log("[Proxy] Проксирование завершено для " + client.getRemoteSocketAddress());
         } catch (Exception e) {
             logger.error("[Proxy] Ошибка проксирования: " + e.getMessage());
         }
     }
 
-    private void forward(InputStream in, OutputStream out) {
+    private void forward(InputStream in, OutputStream out, String direction) {
         byte[] buf = new byte[4096];
         int len;
         try {
@@ -241,7 +261,10 @@ public class ProxyServer {
                 out.write(buf, 0, len);
                 out.flush();
             }
-        } catch (IOException ignored) {}
+            logger.log("[Proxy] Поток завершён: " + direction);
+        } catch (IOException e) {
+            logger.log("[Proxy] Обрыв потока (" + direction + "): " + e.getMessage());
+        }
     }
 
     private int readVarInt(InputStream in) throws IOException {
