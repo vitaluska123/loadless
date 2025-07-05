@@ -1,3 +1,0 @@
-# By changing the setting below to TRUE you are indicating your agreement to our EULA.
-# https://github.com/loadless-proxy/loadless/eula
-eula=true
