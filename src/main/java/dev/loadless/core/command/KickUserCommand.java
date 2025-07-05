@@ -27,7 +27,6 @@ public class KickUserCommand implements ConsoleCommand {
     public String execute(String[] args) {
         if (args.length < 1) return "Использование: kick <ник|uuid> [причина]";
         String target = args[0];
-        String reason = args.length > 1 ? String.join(" ", java.util.Arrays.copyOfRange(args, 1, args.length)) : "Вы были отключены администратором.";
         Map<String, ConnectedUser> users = proxyServer.getConnectedUsers();
         ConnectedUser user = users.values().stream()
                 .filter(u -> u.name.equalsIgnoreCase(target) || u.uuid.equalsIgnoreCase(target))

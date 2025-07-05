@@ -185,11 +185,10 @@ public class ProxyServer {
                 // Читаем следующий пакет (status request)
                 @SuppressWarnings("unused")
                 int nextPacketLen = readVarInt(in); // ОБЯЗАТЕЛЬНО читать VarInt длины!
-                
                 int packetId = in.read();
                 if (packetId == 0x00) {
                     logger.log("[Proxy] Ping-запрос (MOTD) от " + client.getRemoteSocketAddress());
-                    // --- MOTD и онлайн всегда кастомные ---
+                    // --- MOTD всегда кастомный, онлайн/max — с реального сервера если возможно ---
                     int playersOnline, playersMax;
                     int[] real = getRealServerPlayers();
                     if (real != null) {
@@ -209,6 +208,7 @@ public class ProxyServer {
                     }
                     String favicon = getFaviconBase64();
                     String motdJson;
+                    // ВСЕГДА используем motdManager.getMotd() (кастомный MOTD), никогда не парсим с реального сервера!
                     if (favicon != null) {
                         String safeFavicon = favicon.replace("\\", "\\\\").replace("\"", "\\\"");
                         motdJson = "{" +
