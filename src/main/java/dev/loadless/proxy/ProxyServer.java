@@ -51,47 +51,65 @@ public class ProxyServer {
             client.setSoTimeout(5000);
             InputStream in = client.getInputStream();
             OutputStream out = client.getOutputStream();
-            // Читаем первый пакет (handshake)
+            // Читаем handshake
             int packetLen = readVarInt(in);
             byte[] handshake = in.readNBytes(packetLen);
-            /* int nextPacketLen = readVarInt(in); */
-            in.mark(1);
-            int packetId = in.read();
-            if (packetId == 0x00) { // status request
-                logger.log("[Proxy] Ping-запрос (MOTD) от " + client.getRemoteSocketAddress());
-                // Отвечаем кастомным MOTD
-                String motdJson = "{\"version\":{\"name\":\"Loadless\",\"protocol\":754},\"players\":{\"max\":100,\"online\":0},\"description\":{\"text\":\"" + motdManager.getMotd() + "\"}}";
-                byte[] response = createStatusResponse(motdJson);
-                out.write(response);
-                out.flush();
-                // Ждём ping (0x01) и отвечаем echo
-                int pingLen = readVarInt(in);
-                byte[] pingPacket = in.readNBytes(pingLen);
-                out.write(createPingResponse(pingPacket));
-                out.flush();
-                return;
-            } else {
-                logger.log("[Proxy] Проксирование соединения для " + client.getRemoteSocketAddress());
-                // Не ping — проксируем к реальному серверу
-                in.reset();
-                proxyToRealServer(client, handshake, in, out);
+            // Определяем state (последний байт handshake)
+            int state = handshake[handshake.length - 1] & 0xFF;
+            if (state == 1) { // status (ping)
+                // Читаем следующий пакет (status request)
+                int nextPacketLen = readVarInt(in);
+                int packetId = in.read();
+                if (packetId == 0x00) {
+                    logger.log("[Proxy] Ping-запрос (MOTD) от " + client.getRemoteSocketAddress());
+                    String motdJson = "{\"version\":{\"name\":\"Loadless\",\"protocol\":754},\"players\":{\"max\":100,\"online\":0},\"description\":{\"text\":\"" + motdManager.getMotd() + "\"}}";
+                    byte[] response = createStatusResponse(motdJson);
+                    out.write(response);
+                    out.flush();
+                    // Попытка прочитать ping (0x01), если есть, с коротким таймаутом
+                    try {
+                        client.setSoTimeout(300); // короткий таймаут (300 мс)
+                        int pingLen = readVarInt(in);
+                        byte[] pingPacket = in.readNBytes(pingLen);
+                        out.write(createPingResponse(pingPacket));
+                        out.flush();
+                    } catch (Exception ignored) {
+                        // Если ping не пришёл — это нормально, просто закрываем соединение
+                    }
+                    return;
+                }
             }
+            // Не ping — сразу проксируем handshake + всё остальное
+            java.io.SequenceInputStream fullIn = new java.io.SequenceInputStream(
+                new java.io.ByteArrayInputStream(encodeVarInt(packetLen, handshake)), in);
+            proxyToRealServer(client, fullIn, out);
         } catch (Exception e) {
             logger.error("[Proxy] Ошибка клиента (" + client.getRemoteSocketAddress() + "): " + e.getMessage());
         }
     }
 
-    private void proxyToRealServer(Socket client, byte[] handshake, InputStream clientIn, OutputStream clientOut) {
+    private byte[] encodeVarInt(int len, byte[] data) {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        try {
+            int value = len;
+            do {
+                byte temp = (byte) (value & 0b01111111);
+                value >>>= 7;
+                if (value != 0) temp |= 0b10000000;
+                out.write(temp);
+            } while (value != 0);
+            out.write(data);
+        } catch (Exception ignored) {}
+        return out.toByteArray();
+    }
+
+    private void proxyToRealServer(Socket client, InputStream clientIn, OutputStream clientOut) {
         try (Socket server = new Socket(realHost, realPort)) {
             server.setSoTimeout(5000);
             logger.log("[Proxy] Проксируем к реальному серверу: " + realHost + ":" + realPort);
             OutputStream serverOut = server.getOutputStream();
             InputStream serverIn = server.getInputStream();
-            // Пересылаем handshake
-            writeVarInt(serverOut, handshake.length);
-            serverOut.write(handshake);
-            serverOut.flush();
-            // Два потока: клиент->сервер и сервер->клиент
+            // Просто пересылаем всё между клиентом и сервером
             Thread t1 = new Thread(() -> forward(clientIn, serverOut));
             Thread t2 = new Thread(() -> forward(serverIn, clientOut));
             t1.start();
@@ -138,15 +156,16 @@ public class ProxyServer {
     }
 
     private byte[] createStatusResponse(String json) throws IOException {
-        byte[] jsonBytes = json.getBytes("UTF-8");
-        int len = 1 + jsonBytes.length;
-        byte[] packet = new byte[len + 5];
-        int idx = 0;
-        idx += writeVarIntToArray(packet, idx, len);
-        packet[idx++] = 0x00; // packet id
-        idx += writeVarIntToArray(packet, idx, jsonBytes.length);
-        System.arraycopy(jsonBytes, 0, packet, idx, jsonBytes.length);
-        return packet;
+        byte[] jsonBytes = json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        java.io.ByteArrayOutputStream data = new java.io.ByteArrayOutputStream();
+        data.write(0x00); // packet id
+        writeVarInt(data, jsonBytes.length);
+        data.write(jsonBytes);
+        byte[] dataBytes = data.toByteArray();
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        writeVarInt(out, dataBytes.length);
+        out.write(dataBytes);
+        return out.toByteArray();
     }
 
     private byte[] createPingResponse(byte[] pingPacket) {
