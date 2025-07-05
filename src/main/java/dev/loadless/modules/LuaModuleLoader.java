@@ -48,7 +48,21 @@ public class LuaModuleLoader {
                 try (InputStream is = zip.getInputStream(mainLuaEntry)) {
                     Files.copy(is, tempLua, StandardCopyOption.REPLACE_EXISTING);
                 }
-                // TODO: Интеграция с LuaJ: запуск main.lua, регистрация API, вызов onLoad
+                // Интеграция с LuaJ: запуск main.lua, регистрация API, вызов onLoad
+                try {
+                    org.luaj.vm2.Globals globals = org.luaj.vm2.lib.jse.JsePlatform.standardGlobals();
+                    org.luaj.vm2.LuaValue chunk = globals.loadfile(tempLua.toString());
+                    chunk.call();
+                    // Вызов onLoad, если определён
+                    org.luaj.vm2.LuaValue onLoad = globals.get("onLoad");
+                    if (!onLoad.isnil()) {
+                        onLoad.call();
+                        System.out.println("[LuaModuleLoader] Вызван onLoad() для " + name);
+                    }
+                } catch (Exception e) {
+                    System.err.println("[LuaModuleLoader] Ошибка LuaJ в модуле: " + name + ": " + e.getMessage());
+                    e.printStackTrace();
+                }
                 System.out.println("[LuaModuleLoader] Найден Lua-модуль: " + name + " v" + version + " (" + zipFile.getName() + ")");
                 // После интеграции с LuaJ: создать LuaModule-обёртку и добавить в loadedModules
             } catch (IOException e) {
