@@ -11,6 +11,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
 import dev.loadless.config.ConfigManager;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
+import java.time.Instant;
 
 public class ProxyServer {
     private final InetSocketAddress bindAddress;
@@ -20,6 +23,9 @@ public class ProxyServer {
     private final int realPort;
     private final ConfigManager configManager;
     private volatile boolean running = false;
+
+    // Потокобезопасный список подключившихся пользователей
+    private final ConcurrentHashMap<String, ConnectedUser> connectedUsers = new ConcurrentHashMap<>();
 
     public ProxyServer(String host, int port, MotdManager motdManager, Logger logger, String realHost, int realPort, ConfigManager configManager) {
         this.bindAddress = new InetSocketAddress(host, port);
@@ -135,8 +141,24 @@ public class ProxyServer {
         return -1;
     }
 
+    // Класс для хранения информации о подключённом пользователе
+    public static class ConnectedUser {
+        public final String name;
+        public final String uuid;
+        public final Socket socket;
+        public final Instant connectedAt;
+        public ConnectedUser(String name, String uuid, Socket socket) {
+            this.name = name;
+            this.uuid = uuid;
+            this.socket = socket;
+            this.connectedAt = Instant.now();
+        }
+    }
+
     private void handleClient(Socket client) {
         logger.log("[Proxy] Попытка запроса от " + client.getRemoteSocketAddress());
+        String userName = null;
+        String userUuid = null;
         try (client) {
             // Увеличиваем таймаут ожидания для долгой прогрузки (например, 60 секунд)
             client.setSoTimeout(60000);
@@ -231,6 +253,10 @@ public class ProxyServer {
                     uuid = bytesToHex(uuidBytes);
                 }
                 logger.log("[Proxy] Игрок подключился: " + name + " (UUID: " + uuid + ")");
+                userName = name;
+                userUuid = uuid;
+                // Добавляем пользователя в список
+                connectedUsers.put(name, new ConnectedUser(name, uuid, client));
             }
             // Не ping — проксируем handshake + login start + всё остальное
             InputStream fullIn = new java.io.SequenceInputStream(
@@ -243,6 +269,12 @@ public class ProxyServer {
             proxyToRealServer(client, fullIn, out);
         } catch (Exception e) {
             logger.error("[Proxy] Ошибка клиента (" + client.getRemoteSocketAddress() + "): " + e.getMessage());
+        } finally {
+            // Удаляем пользователя из списка при отключении
+            if (userName != null) {
+                connectedUsers.remove(userName);
+                logger.log("[Proxy] Игрок отключился: " + userName + (userUuid != null ? " (UUID: " + userUuid + ")" : ""));
+            }
         }
     }
 
@@ -371,5 +403,10 @@ public class ProxyServer {
     public void stop() {
         running = false;
         logger.log("[Proxy] Сервер остановлен");
+    }
+
+    // Метод для получения копии списка пользователей (например, для команды list)
+    public Map<String, ConnectedUser> getConnectedUsers() {
+        return new java.util.HashMap<>(connectedUsers);
     }
 }
