@@ -22,4 +22,8 @@ public class MotdManager {
             System.err.println("[MOTD] Ошибка сохранения MOTD: " + e.getMessage());
         }
     }
+
+    public ConfigManager getConfigManager() {
+        return configManager;
+    }
 }
