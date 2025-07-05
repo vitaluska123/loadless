@@ -6,18 +6,22 @@ import javax.xml.transform.*;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.File;
+import dev.loadless.core.Logger;
 
 public class ConfigManager {
     private static final String CONFIG_FILE = "config.xml";
     private Document configDoc;
     private File configFile;
+    private Logger logger;
 
-    public ConfigManager() throws Exception {
+    public ConfigManager(Logger logger) throws Exception {
+        this.logger = logger;
         configFile = new File(CONFIG_FILE);
         if (!configFile.exists()) {
             createDefaultConfig();
         }
         loadConfig();
+        logger.log("[Config] Конфиг загружен из " + configFile.getAbsolutePath());
     }
 
     private void createDefaultConfig() throws Exception {
@@ -49,6 +53,7 @@ public class ConfigManager {
         DOMSource source = new DOMSource(configDoc);
         StreamResult result = new StreamResult(configFile);
         transformer.transform(source, result);
+        if (logger != null) logger.log("[Config] Конфиг сохранён: " + configFile.getAbsolutePath());
     }
 
     public Document getConfigDoc() {
@@ -120,5 +125,6 @@ public class ConfigManager {
         Element module = getModuleConfig(moduleName);
         module.setAttribute(key, value);
         saveConfig();
+        if (logger != null) logger.log("[Config] Параметр модуля '" + moduleName + "' -> " + key + " = " + value);
     }
 }

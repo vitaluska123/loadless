@@ -11,27 +11,25 @@ import java.io.File;
 
 public class Main {
     public static void main(String[] args) {
-        System.out.println("Loadless proxy server starting...");
-        // Инициализация менеджеров
-        EulaManager eulaManager = new EulaManager();
-        ModulesManager modulesManager = new ModulesManager();
         try {
-            // Инициализация config.xml
-            ConfigManager configManager = new ConfigManager();
-            // Используем менеджеры для инициализации (чтобы не было предупреждений о неиспользуемых переменных)
+            // Проверка EULA до любой инициализации
+            EulaManager eulaManager = new EulaManager();
             if (!eulaManager.checkOrCreateEula()) {
                 System.out.println("Пожалуйста, примите условия EULA в файле eula.txt и перезапустите Loadless.");
                 return;
             }
+            // Инициализация логгера и остальных компонентов только после принятия EULA
+            Logger logger = new Logger();
+            logger.log("Loadless proxy server starting...");
+            ModulesManager modulesManager = new ModulesManager();
             modulesManager.createModulesDir();
-            // Загрузка Java-модулей с поддержкой config.xml
+            ConfigManager configManager = new ConfigManager(logger);
             ModuleLoader moduleLoader = new ModuleLoader(new File("modules"), configManager);
             moduleLoader.loadModules();
-            // Запуск прокси-сервера с параметрами из config.xml
             String host = configManager.getCoreHost();
             int port = configManager.getCorePort();
             MotdManager motdManager = new MotdManager(configManager);
-            ProxyServer proxyServer = new ProxyServer(host, port, motdManager);
+            ProxyServer proxyServer = new ProxyServer(host, port, motdManager, logger);
             proxyServer.start();
         } catch (Exception e) {
             System.err.println("Ошибка при инициализации: " + e.getMessage());

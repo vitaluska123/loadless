@@ -6,21 +6,24 @@ import java.net.Socket;
 import java.net.ServerSocket;
 import java.io.InputStream;
 import java.io.OutputStream;
+import dev.loadless.core.Logger;
 
 public class ProxyServer {
     private final InetSocketAddress bindAddress;
     private final MotdManager motdManager;
+    private final Logger logger;
     private volatile boolean running = false;
 
-    public ProxyServer(String host, int port, MotdManager motdManager) {
+    public ProxyServer(String host, int port, MotdManager motdManager, Logger logger) {
         this.bindAddress = new InetSocketAddress(host, port);
         this.motdManager = motdManager;
+        this.logger = logger;
     }
 
     public void start() {
         running = true;
         new Thread(this::runServer, "Loadless-Proxy-Main").start();
-        System.out.println("[Proxy] Сервер запущен на " + bindAddress);
+        logger.log("[Proxy] Сервер запущен на " + bindAddress);
     }
 
     private void runServer() {
@@ -28,10 +31,11 @@ public class ProxyServer {
             serverSocket.bind(bindAddress);
             while (running) {
                 Socket client = serverSocket.accept();
+                logger.log("[Proxy] Новое подключение: " + client.getRemoteSocketAddress());
                 new Thread(() -> handleClient(client), "Loadless-Proxy-Client").start();
             }
         } catch (IOException e) {
-            System.err.println("[Proxy] Ошибка сервера: " + e.getMessage());
+            logger.error("[Proxy] Ошибка сервера: " + e.getMessage());
         }
     }
 
@@ -43,10 +47,10 @@ public class ProxyServer {
             // Читаем первый пакет (handshake)
             int packetLen = readVarInt(in);
             byte[] handshake = in.readNBytes(packetLen);
-            int nextPacketLen = readVarInt(in);
             in.mark(1);
             int packetId = in.read();
             if (packetId == 0x00) { // status request
+                logger.log("[Proxy] Ping-запрос (MOTD) от " + client.getRemoteSocketAddress());
                 // Отвечаем кастомным MOTD
                 String motdJson = "{\"version\":{\"name\":\"Loadless\",\"protocol\":754},\"players\":{\"max\":100,\"online\":0},\"description\":{\"text\":\"" + motdManager.getMotd() + "\"}}";
                 byte[] response = createStatusResponse(motdJson);
@@ -59,12 +63,13 @@ public class ProxyServer {
                 out.flush();
                 return;
             } else {
+                logger.log("[Proxy] Проксирование соединения для " + client.getRemoteSocketAddress());
                 // Не ping — проксируем к реальному серверу
                 in.reset();
                 proxyToRealServer(client, handshake, in, out);
             }
         } catch (Exception e) {
-            // Игнорируем ошибки соединения
+            logger.error("[Proxy] Ошибка клиента: " + e.getMessage());
         }
     }
 
@@ -73,6 +78,7 @@ public class ProxyServer {
         int realPort = Integer.parseInt(motdManager.getConfigManager().getModuleParam("loadless-core", "realServerPort", "25566"));
         try (Socket server = new Socket(realHost, realPort)) {
             server.setSoTimeout(5000);
+            logger.log("[Proxy] Проксируем к реальному серверу: " + realHost + ":" + realPort);
             OutputStream serverOut = server.getOutputStream();
             InputStream serverIn = server.getInputStream();
             // Пересылаем handshake
@@ -87,7 +93,7 @@ public class ProxyServer {
             t1.join();
             t2.join();
         } catch (Exception e) {
-            // Игнорируем ошибки соединения
+            logger.error("[Proxy] Ошибка проксирования: " + e.getMessage());
         }
     }
 
@@ -160,6 +166,6 @@ public class ProxyServer {
 
     public void stop() {
         running = false;
-        System.out.println("[Proxy] Сервер остановлен");
+        logger.log("[Proxy] Сервер остановлен");
     }
 }
