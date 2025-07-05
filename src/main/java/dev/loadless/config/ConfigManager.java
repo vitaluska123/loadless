@@ -28,18 +28,51 @@ public class ConfigManager {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
         configDoc = dBuilder.newDocument();
-        Element rootElement = configDoc.createElement("loadless-config");
+        Element rootElement = configDoc.createElement("loadless");
         configDoc.appendChild(rootElement);
-        // Добавляем секцию ядра с настройками по умолчанию
+        // <core>
         Element core = configDoc.createElement("core");
-        core.setAttribute("host", "0.0.0.0");
-        core.setAttribute("port", "25565");
+        Element host = configDoc.createElement("host");
+        host.setTextContent("0.0.0.0");
+        core.appendChild(host);
+        Element port = configDoc.createElement("port");
+        port.setTextContent("25566");
+        core.appendChild(port);
+        // <version>
+        Element version = configDoc.createElement("version");
+        Element versionName = configDoc.createElement("name");
+        versionName.setTextContent("1.20.6");
+        version.appendChild(versionName);
+        Element versionProtocol = configDoc.createElement("protocol");
+        versionProtocol.setTextContent("765");
+        version.appendChild(versionProtocol);
+        core.appendChild(version);
+        // <players>
+        Element players = configDoc.createElement("players");
+        Element max = configDoc.createElement("max");
+        max.setTextContent("20");
+        players.appendChild(max);
+        Element online = configDoc.createElement("online");
+        online.setTextContent("1");
+        players.appendChild(online);
+        core.appendChild(players);
+        // <motd>
+        Element motd = configDoc.createElement("motd");
+        motd.setTextContent("§aLoadless Proxy Server");
+        core.appendChild(motd);
         rootElement.appendChild(core);
-        // Добавляем параметры реального сервера для проксирования
-        Element real = configDoc.createElement("real-server");
-        real.setAttribute("host", "127.0.0.1");
-        real.setAttribute("port", "25566");
-        rootElement.appendChild(real);
+        // <realServer>
+        Element realServer = configDoc.createElement("realServer");
+        Element realHost = configDoc.createElement("host");
+        realHost.setTextContent("127.0.0.1");
+        realServer.appendChild(realHost);
+        Element realPort = configDoc.createElement("port");
+        realPort.setTextContent("25565");
+        realServer.appendChild(realPort);
+        rootElement.appendChild(realServer);
+        // <modules>
+        Element modules = configDoc.createElement("modules");
+        rootElement.appendChild(modules);
         saveConfig();
     }
 
@@ -65,66 +98,67 @@ public class ConfigManager {
         return configDoc;
     }
 
-    public Element getOrCreateModuleConfig(String moduleName) {
-        NodeList modules = configDoc.getElementsByTagName("module");
-        for (int i = 0; i < modules.getLength(); i++) {
-            Element module = (Element) modules.item(i);
-            if (moduleName.equals(module.getAttribute("name"))) {
-                return module;
-            }
+    // Новый способ получения параметров
+    private Element getElementByTagChain(String... tags) {
+        Element el = configDoc.getDocumentElement();
+        for (String tag : tags) {
+            NodeList nl = el.getElementsByTagName(tag);
+            if (nl.getLength() == 0) return null;
+            el = (Element) nl.item(0);
         }
-        // create new module config
-        Element module = configDoc.createElement("module");
-        module.setAttribute("name", moduleName);
-        configDoc.getDocumentElement().appendChild(module);
-        return module;
+        return el;
     }
 
     public String getCoreHost() {
-        NodeList coreList = configDoc.getElementsByTagName("core");
-        if (coreList.getLength() > 0) {
-            Element core = (Element) coreList.item(0);
-            return core.getAttribute("host");
-        }
-        return "0.0.0.0";
+        Element el = getElementByTagChain("core", "host");
+        return el != null ? el.getTextContent() : "0.0.0.0";
     }
-
     public int getCorePort() {
-        NodeList coreList = configDoc.getElementsByTagName("core");
-        if (coreList.getLength() > 0) {
-            Element core = (Element) coreList.item(0);
-            try {
-                return Integer.parseInt(core.getAttribute("port"));
-            } catch (Exception ignored) {}
-        }
-        return 25565;
+        Element el = getElementByTagChain("core", "port");
+        try { return el != null ? Integer.parseInt(el.getTextContent()) : 25565; } catch (Exception e) { return 25565; }
     }
-
+    public String getVersionName() {
+        Element el = getElementByTagChain("core", "version", "name");
+        return el != null ? el.getTextContent() : "1.20.6";
+    }
+    public int getVersionProtocol() {
+        Element el = getElementByTagChain("core", "version", "protocol");
+        try { return el != null ? Integer.parseInt(el.getTextContent()) : 765; } catch (Exception e) { return 765; }
+    }
+    public int getPlayersMax() {
+        Element el = getElementByTagChain("core", "players", "max");
+        try { return el != null ? Integer.parseInt(el.getTextContent()) : 20; } catch (Exception e) { return 20; }
+    }
+    public int getPlayersOnline() {
+        Element el = getElementByTagChain("core", "players", "online");
+        try { return el != null ? Integer.parseInt(el.getTextContent()) : 1; } catch (Exception e) { return 1; }
+    }
+    public String getDefaultMotd() {
+        Element el = getElementByTagChain("core", "motd");
+        return el != null ? el.getTextContent() : "§aLoadless Proxy Server";
+    }
     public String getRealServerHost() {
-        NodeList realList = configDoc.getElementsByTagName("real-server");
-        if (realList.getLength() > 0) {
-            Element real = (Element) realList.item(0);
-            return real.getAttribute("host");
-        }
-        return "127.0.0.1";
+        Element el = getElementByTagChain("realServer", "host");
+        return el != null ? el.getTextContent() : "127.0.0.1";
     }
-
     public int getRealServerPort() {
-        NodeList realList = configDoc.getElementsByTagName("real-server");
-        if (realList.getLength() > 0) {
-            Element real = (Element) realList.item(0);
-            try {
-                return Integer.parseInt(real.getAttribute("port"));
-            } catch (Exception ignored) {}
-        }
-        return 25566;
+        Element el = getElementByTagChain("realServer", "port");
+        try { return el != null ? Integer.parseInt(el.getTextContent()) : 25566; } catch (Exception e) { return 25566; }
     }
 
-    // Получить или создать секцию настроек только для этого модуля
-    public Element getModuleConfig(String moduleName) {
-        NodeList modules = configDoc.getElementsByTagName("module");
-        for (int i = 0; i < modules.getLength(); i++) {
-            Element module = (Element) modules.item(i);
+    // Модули теперь в <modules><module name="..."></module></modules>
+    public Element getOrCreateModuleConfig(String moduleName) {
+        NodeList modulesList = configDoc.getElementsByTagName("modules");
+        Element modules;
+        if (modulesList.getLength() > 0) {
+            modules = (Element) modulesList.item(0);
+        } else {
+            modules = configDoc.createElement("modules");
+            configDoc.getDocumentElement().appendChild(modules);
+        }
+        NodeList moduleNodes = modules.getElementsByTagName("module");
+        for (int i = 0; i < moduleNodes.getLength(); i++) {
+            Element module = (Element) moduleNodes.item(i);
             if (moduleName.equals(module.getAttribute("name"))) {
                 return module;
             }
@@ -132,23 +166,30 @@ public class ConfigManager {
         // create new module config
         Element module = configDoc.createElement("module");
         module.setAttribute("name", moduleName);
-        configDoc.getDocumentElement().appendChild(module);
+        modules.appendChild(module);
         return module;
     }
 
-    // Получить значение параметра модуля
     public String getModuleParam(String moduleName, String key, String defaultValue) {
-        Element module = getModuleConfig(moduleName);
-        if (module.hasAttribute(key)) {
-            return module.getAttribute(key);
+        Element module = getOrCreateModuleConfig(moduleName);
+        NodeList params = module.getElementsByTagName(key);
+        if (params.getLength() > 0) {
+            return params.item(0).getTextContent();
         }
         return defaultValue;
     }
 
-    // Установить значение параметра модуля
     public void setModuleParam(String moduleName, String key, String value) throws TransformerException {
-        Element module = getModuleConfig(moduleName);
-        module.setAttribute(key, value);
+        Element module = getOrCreateModuleConfig(moduleName);
+        NodeList params = module.getElementsByTagName(key);
+        Element param;
+        if (params.getLength() > 0) {
+            param = (Element) params.item(0);
+        } else {
+            param = configDoc.createElement(key);
+            module.appendChild(param);
+        }
+        param.setTextContent(value);
         saveConfig();
         if (logger != null) logger.log("[Config] Параметр модуля '" + moduleName + "' -> " + key + " = " + value);
     }

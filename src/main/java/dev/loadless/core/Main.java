@@ -31,7 +31,7 @@ public class Main {
             String realHost = configManager.getRealServerHost();
             int realPort = configManager.getRealServerPort();
             MotdManager motdManager = new MotdManager(configManager);
-            ProxyServer proxyServer = new ProxyServer(host, port, motdManager, logger, realHost, realPort);
+            ProxyServer proxyServer = new ProxyServer(host, port, motdManager, logger, realHost, realPort, configManager);
             proxyServer.start();
         } catch (Exception e) {
             System.err.println("Ошибка при инициализации: " + e.getMessage());

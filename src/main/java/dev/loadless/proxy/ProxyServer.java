@@ -10,6 +10,7 @@ import dev.loadless.core.Logger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
+import dev.loadless.config.ConfigManager;
 
 public class ProxyServer {
     private final InetSocketAddress bindAddress;
@@ -17,14 +18,16 @@ public class ProxyServer {
     private final Logger logger;
     private final String realHost;
     private final int realPort;
+    private final ConfigManager configManager;
     private volatile boolean running = false;
 
-    public ProxyServer(String host, int port, MotdManager motdManager, Logger logger, String realHost, int realPort) {
+    public ProxyServer(String host, int port, MotdManager motdManager, Logger logger, String realHost, int realPort, ConfigManager configManager) {
         this.bindAddress = new InetSocketAddress(host, port);
         this.motdManager = motdManager;
         this.logger = logger;
         this.realHost = realHost;
         this.realPort = realPort;
+        this.configManager = configManager;
     }
 
     public void start() {
@@ -93,12 +96,24 @@ public class ProxyServer {
                     logger.log("[Proxy] Ping-запрос (MOTD) от " + client.getRemoteSocketAddress());
                     String favicon = getFaviconBase64();
                     String motdJson;
+                    String versionName = configManager.getVersionName();
+                    int versionProtocol = configManager.getVersionProtocol();
+                    int playersMax = configManager.getPlayersMax();
+                    int playersOnline = configManager.getPlayersOnline();
                     if (favicon != null) {
                         // Экранируем base64 для JSON (на всякий случай)
                         String safeFavicon = favicon.replace("\\", "\\\\").replace("\"", "\\\"");
-                        motdJson = "{\"version\":{\"name\":\"Loadless\",\"protocol\":754},\"players\":{\"max\":100,\"online\":0},\"description\":{\"text\":\"" + motdManager.getMotd() + "\"},\"favicon\":\"" + safeFavicon + "\"}";
+                        motdJson = "{" +
+                                "\"version\":{\"name\":\"" + versionName + "\",\"protocol\":" + versionProtocol + "}," +
+                                "\"players\":{\"max\":" + playersMax + ",\"online\":" + playersOnline + ",\"sample\":[]}," +
+                                "\"description\":{\"text\":\"" + motdManager.getMotd() + "\"}," +
+                                "\"favicon\":\"" + safeFavicon + "\"}";
                     } else {
-                        motdJson = "{\"version\":{\"name\":\"Loadless\",\"protocol\":754},\"players\":{\"max\":100,\"online\":0},\"description\":{\"text\":\"" + motdManager.getMotd() + "\"}}";
+                        motdJson = "{" +
+                                "\"version\":{\"name\":\"" + versionName + "\",\"protocol\":" + versionProtocol + "}," +
+                                "\"players\":{\"max\":" + playersMax + ",\"online\":" + playersOnline + ",\"sample\":[]}," +
+                                "\"description\":{\"text\":\"" + motdManager.getMotd() + "\"}" +
+                                "}";
                     }
                     byte[] response = createStatusResponse(motdJson);
                     out.write(response);
