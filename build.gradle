@@ -22,7 +22,7 @@ tasks.withType(JavaCompile) {
 jar {
     manifest {
         attributes(
-            'Main-Class': 'dev.loadless.Main'
+            'Main-Class': 'dev.loadless.core.Main'
         )
     }
 }
@@ -33,8 +33,32 @@ shadowJar {
     archiveVersion.set(version)
 }
 
-mainClassName = 'dev.loadless.Main'
+mainClassName = 'dev.loadless.core.Main'
 
 test {
     useJUnitPlatform()
+}
+
+distZip.dependsOn shadowJar
+distTar.dependsOn shadowJar
+startScripts.dependsOn shadowJar
+startShadowScripts.dependsOn jar
+
+task loadlessRun(type: JavaExec) {
+    group = 'loadless'
+    description = 'Сборка и запуск Loadless в изолированной папке run'
+    dependsOn shadowJar
+    doFirst {
+        def runDir = file("run")
+        if (!runDir.exists()) {
+            runDir.mkdirs()
+        }
+        copy {
+            from("build/libs/loadless-" + version + ".jar")
+            into(runDir)
+        }
+    }
+    workingDir = file('run')
+    mainClass = 'dev.loadless.core.Main'
+    classpath = files("run/loadless-" + version + ".jar")
 }
