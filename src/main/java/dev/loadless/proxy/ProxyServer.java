@@ -25,6 +25,7 @@ public class ProxyServer {
     }
 
     public void start() {
+        testRealServerConnection();
         running = true;
         new Thread(this::runServer, "Loadless-Proxy-Main").start();
         logger.log("[Proxy] Сервер запущен на " + bindAddress);
@@ -35,6 +36,7 @@ public class ProxyServer {
             serverSocket.bind(bindAddress);
             while (running) {
                 Socket client = serverSocket.accept();
+                logger.log("[Proxy] Принято новое TCP-соединение: " + client.getRemoteSocketAddress());
                 logger.log("[Proxy] Новое подключение: " + client.getRemoteSocketAddress());
                 new Thread(() -> handleClient(client), "Loadless-Proxy-Client").start();
             }
@@ -44,6 +46,7 @@ public class ProxyServer {
     }
 
     private void handleClient(Socket client) {
+        logger.log("[Proxy] Попытка запроса от " + client.getRemoteSocketAddress());
         try (client) {
             client.setSoTimeout(5000);
             InputStream in = client.getInputStream();
@@ -51,6 +54,7 @@ public class ProxyServer {
             // Читаем первый пакет (handshake)
             int packetLen = readVarInt(in);
             byte[] handshake = in.readNBytes(packetLen);
+            /* int nextPacketLen = readVarInt(in); */
             in.mark(1);
             int packetId = in.read();
             if (packetId == 0x00) { // status request
@@ -73,7 +77,7 @@ public class ProxyServer {
                 proxyToRealServer(client, handshake, in, out);
             }
         } catch (Exception e) {
-            logger.error("[Proxy] Ошибка клиента: " + e.getMessage());
+            logger.error("[Proxy] Ошибка клиента (" + client.getRemoteSocketAddress() + "): " + e.getMessage());
         }
     }
 
@@ -164,6 +168,14 @@ public class ProxyServer {
             arr[offset++] = temp;
         } while (value != 0);
         return offset - start;
+    }
+
+    private void testRealServerConnection() {
+        try (Socket testSocket = new Socket(realHost, realPort)) {
+            logger.log("[Proxy] Тестовое соединение с реальным сервером успешно: " + realHost + ":" + realPort);
+        } catch (IOException e) {
+            logger.error("[Proxy] Не удалось подключиться к реальному серверу: " + realHost + ":" + realPort + " — " + e.getMessage());
+        }
     }
 
     public void stop() {

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <loadless-config>
-  <core host="0.0.0.0" port="25565"/>
-  <real-server host="127.0.0.1" port="25566"/>
+  <core host="0.0.0.0" port="25567"/>
+  <real-server host="127.0.0.1" port="25565"/>
 </loadless-config>
