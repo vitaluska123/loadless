@@ -43,6 +43,13 @@ public class LuaModuleLoader {
                 JSONObject manifest = new JSONObject(manifestJson);
                 String name = manifest.optString("name", zipFile.getName());
                 String version = manifest.optString("version", "1.0.0");
+                List<String> commands = new ArrayList<>();
+                if (manifest.has("commands")) {
+                    var arr = manifest.getJSONArray("commands");
+                    for (int i = 0; i < arr.length(); i++) {
+                        commands.add(arr.getString(i));
+                    }
+                }
                 // Распаковка main.lua во временный файл
                 Path tempLua = Files.createTempFile("loadless-lua-", ".lua");
                 try (InputStream is = zip.getInputStream(mainLuaEntry)) {
@@ -64,6 +71,9 @@ public class LuaModuleLoader {
                     e.printStackTrace();
                 }
                 System.out.println("[LuaModuleLoader] Найден Lua-модуль: " + name + " v" + version + " (" + zipFile.getName() + ")");
+                if (!commands.isEmpty()) {
+                    System.out.println("[LuaModuleLoader] Команды модуля: " + String.join(", ", commands));
+                }
                 // После интеграции с LuaJ: создать LuaModule-обёртку и добавить в loadedModules
             } catch (IOException e) {
                 System.err.println("[LuaModuleLoader] Ошибка при загрузке модуля: " + zipFile.getName());
@@ -83,5 +93,31 @@ public class LuaModuleLoader {
 
     public List<LuaModule> getLoadedModules() {
         return List.copyOf(loadedModules);
+    }
+
+    // Получить список команд из manifest.json для всех Lua-модулей
+    public List<String> getManifestCommands() {
+        List<String> all = new ArrayList<>();
+        if (!modulesDir.exists() || !modulesDir.isDirectory()) return all;
+        File[] files = modulesDir.listFiles((dir, name) -> name.endsWith(".zip"));
+        if (files == null) return all;
+        for (File zipFile : files) {
+            try (ZipFile zip = new ZipFile(zipFile)) {
+                ZipEntry manifestEntry = zip.getEntry("manifest.json");
+                if (manifestEntry == null) continue;
+                String manifestJson;
+                try (InputStream is = zip.getInputStream(manifestEntry)) {
+                    manifestJson = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                }
+                JSONObject manifest = new JSONObject(manifestJson);
+                if (manifest.has("commands")) {
+                    var arr = manifest.getJSONArray("commands");
+                    for (int i = 0; i < arr.length(); i++) {
+                        all.add(arr.getString(i));
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return all;
     }
 }

@@ -50,6 +50,11 @@ public class Main {
                         for (ConsoleCommand c : cmdManager.getAll()) {
                             sb.append(c.getName()).append(" - ").append(c.getDescription()).append("\n");
                         }
+                        // Выводим команды Lua-модулей из manifest.json
+                        var luaCommands = luaModuleLoader.getManifestCommands();
+                        if (!luaCommands.isEmpty()) {
+                            sb.append("[Lua-модули] ").append(String.join(", ", luaCommands)).append("\n");
+                        }
                         return sb.toString();
                     }
                 });
