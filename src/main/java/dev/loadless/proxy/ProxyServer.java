@@ -57,8 +57,17 @@ public class ProxyServer {
         }
     }
 
+    // Кэшированная строка favicon
+    private String cachedFaviconBase64 = null;
+    private long faviconLastLoaded = 0;
+    private static final long FAVICON_RELOAD_INTERVAL_MS = 60_000; // 1 минута
+
     private String getFaviconBase64() {
         try {
+            // Если уже кэшировано и не истекло время — возвращаем кэш
+            if (cachedFaviconBase64 != null && (System.currentTimeMillis() - faviconLastLoaded) < FAVICON_RELOAD_INTERVAL_MS) {
+                return cachedFaviconBase64;
+            }
             Path iconPath = Path.of("server-icon.png");
             if (Files.exists(iconPath)) {
                 byte[] iconBytes = Files.readAllBytes(iconPath);
@@ -72,10 +81,13 @@ public class ProxyServer {
                     return null;
                 }
                 String base64 = Base64.getEncoder().encodeToString(iconBytes);
-                logger.log("[Proxy] Favicon успешно найден и добавлен в MOTD.");
-                return "data:image/png;base64," + base64;
+                cachedFaviconBase64 = "data:image/png;base64," + base64;
+                faviconLastLoaded = System.currentTimeMillis();
+                logger.log("[Proxy] Favicon успешно найден и закэширован.");
+                return cachedFaviconBase64;
             } else {
                 logger.log("[Proxy] server-icon.png не найден в рабочей директории!");
+                cachedFaviconBase64 = null;
             }
         } catch (Exception e) {
             logger.log("[Proxy] Ошибка чтения server-icon.png: " + e.getMessage());
@@ -178,8 +190,15 @@ public class ProxyServer {
                 if (packetId == 0x00) {
                     logger.log("[Proxy] Ping-запрос (MOTD) от " + client.getRemoteSocketAddress());
                     // --- MOTD и онлайн всегда кастомные ---
-                    int playersOnline = configManager.getPlayersOnline();
-                    int playersMax = configManager.getPlayersMax();
+                    int playersOnline, playersMax;
+                    int[] real = getRealServerPlayers();
+                    if (real != null) {
+                        playersOnline = real[0];
+                        playersMax = real[1];
+                    } else {
+                        playersOnline = configManager.getPlayersOnline();
+                        playersMax = configManager.getPlayersMax();
+                    }
                     String playersSample = "[]";
                     String versionBlock;
                     if (lastGetRealServerPlayersError != null && lastGetRealServerPlayersError.contains("Connection refused")) {
