@@ -11,6 +11,10 @@ repositories {
     mavenCentral()
 }
 
+dependencies {
+    implementation 'org.json:json:20231013'
+}
+
 def supportedJavaVersions = [17, 18, 19, 20, 21, 22, 23, 24]
 
 tasks.withType(JavaCompile) {
