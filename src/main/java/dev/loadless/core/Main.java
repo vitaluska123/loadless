@@ -67,7 +67,14 @@ public class Main {
                 cmdManager.register(new ListUsersCommand(proxyServer));
                 // kick
                 cmdManager.register(new KickUserCommand(proxyServer));
-                // TODO: регистрация команд от модулей (см. ниже)
+                // Регистрация команд от Lua-модулей
+                for (var module : luaModuleLoader.getLoadedModules()) {
+                    if (module instanceof dev.loadless.api.LuaModule) {
+                        if (module instanceof dev.loadless.api.ConsoleCommand) {
+                            cmdManager.register((dev.loadless.api.ConsoleCommand) module);
+                        }
+                    }
+                }
 
                 // Поток для чтения команд
                 new Thread(() -> {
