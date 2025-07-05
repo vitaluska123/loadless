@@ -5,6 +5,7 @@ import dev.loadless.manager.EulaManager;
 import dev.loadless.manager.ModulesManager;
 import dev.loadless.modules.ModuleLoader;
 import dev.loadless.proxy.ProxyServer;
+import dev.loadless.proxy.MotdManager;
 
 import java.io.File;
 
@@ -29,7 +30,8 @@ public class Main {
             // Запуск прокси-сервера с параметрами из config.xml
             String host = configManager.getCoreHost();
             int port = configManager.getCorePort();
-            ProxyServer proxyServer = new ProxyServer(host, port);
+            MotdManager motdManager = new MotdManager(configManager);
+            ProxyServer proxyServer = new ProxyServer(host, port, motdManager);
             proxyServer.start();
         } catch (Exception e) {
             System.err.println("Ошибка при инициализации: " + e.getMessage());
