@@ -50,15 +50,27 @@ public class ProxyServer {
 
     private String getFaviconBase64() {
         try {
-            // Путь к config.xml
-            Path configPath = Path.of("run", "config.xml");
-            Path iconPath = configPath.getParent().resolve("server-icon.png");
+            Path iconPath = Path.of("server-icon.png");
             if (Files.exists(iconPath)) {
                 byte[] iconBytes = Files.readAllBytes(iconPath);
+                java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(iconPath.toFile());
+                if (img == null) {
+                    logger.log("[Proxy] server-icon.png не читается как PNG!");
+                    return null;
+                }
+                if (img.getWidth() != 64 || img.getHeight() != 64) {
+                    logger.log("[Proxy] server-icon.png должен быть PNG 64x64! Сейчас: " + img.getWidth() + "x" + img.getHeight());
+                    return null;
+                }
                 String base64 = Base64.getEncoder().encodeToString(iconBytes);
+                logger.log("[Proxy] Favicon успешно найден и добавлен в MOTD.");
                 return "data:image/png;base64," + base64;
+            } else {
+                logger.log("[Proxy] server-icon.png не найден в рабочей директории!");
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            logger.log("[Proxy] Ошибка чтения server-icon.png: " + e.getMessage());
+        }
         return null;
     }
 
@@ -82,7 +94,9 @@ public class ProxyServer {
                     String favicon = getFaviconBase64();
                     String motdJson;
                     if (favicon != null) {
-                        motdJson = "{\"version\":{\"name\":\"Loadless\",\"protocol\":754},\"players\":{\"max\":100,\"online\":0},\"description\":{\"text\":\"" + motdManager.getMotd() + "\"},\"favicon\":\"" + favicon + "\"}";
+                        // Экранируем base64 для JSON (на всякий случай)
+                        String safeFavicon = favicon.replace("\\", "\\\\").replace("\"", "\\\"");
+                        motdJson = "{\"version\":{\"name\":\"Loadless\",\"protocol\":754},\"players\":{\"max\":100,\"online\":0},\"description\":{\"text\":\"" + motdManager.getMotd() + "\"},\"favicon\":\"" + safeFavicon + "\"}";
                     } else {
                         motdJson = "{\"version\":{\"name\":\"Loadless\",\"protocol\":754},\"players\":{\"max\":100,\"online\":0},\"description\":{\"text\":\"" + motdManager.getMotd() + "\"}}";
                     }
