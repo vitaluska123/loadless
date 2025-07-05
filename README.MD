@@ -48,6 +48,51 @@ java -jar loadless-1.0.0.jar
 - [ ] Примеры модулей и документация
 - [ ] Юнит-тесты ядра
 
+## Пример Java-модуля
+
+> **Важно:** Java-модули должны быть собраны в JAR-файл! Просто `.java`-файлы в папке `modules` не работают. Используйте Gradle/Maven или javac + jar для сборки.
+
+```java
+package dev.loadless.example;
+
+import dev.loadless.api.Module;
+import dev.loadless.api.ConsoleCommand;
+import dev.loadless.core.ConsoleCommandManager;
+
+public class ExampleModule implements Module {
+    @Override
+    public String getName() {
+        return "ExampleModule";
+    }
+
+    @Override
+    public void onLoad(ConsoleCommandManager commandManager) {
+        // Регистрируем простую команду hello
+        commandManager.register(new ConsoleCommand() {
+            @Override
+            public String getName() { return "hello"; }
+            @Override
+            public String getDescription() { return "Пример команды из модуля"; }
+            @Override
+            public String execute(String[] args) {
+                return "Привет из ExampleModule!";
+            }
+        });
+    }
+}
+```
+
+## Как подключить модуль
+1. Скомпилируйте класс ExampleModule в JAR (или несколько классов, если модуль сложнее).
+2. Поместите JAR-файл в папку `modules` в директории Loadless.
+3. Перезапустите Loadless — модуль будет автоматически загружен, команда появится в консоли.
+
+## Структура Java-модуля
+- Класс должен реализовывать интерфейс `dev.loadless.api.Module`.
+- Метод `onLoad(ConsoleCommandManager)` вызывается при загрузке модуля.
+- Для регистрации консольных команд используйте `commandManager.register(...)`.
+- Можно использовать любые зависимости, если они включены в JAR (fat jar/shadow jar).
+
 ---
 
 **Loadless** — лёгкое решение для управления статусом и проксированием Minecraft-сервера без лишних сложностей!
