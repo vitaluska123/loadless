@@ -47,15 +47,6 @@ public class ConfigManager {
         versionProtocol.setTextContent("765");
         version.appendChild(versionProtocol);
         core.appendChild(version);
-        // <players>
-        Element players = configDoc.createElement("players");
-        Element max = configDoc.createElement("max");
-        max.setTextContent("20");
-        players.appendChild(max);
-        Element online = configDoc.createElement("online");
-        online.setTextContent("1");
-        players.appendChild(online);
-        core.appendChild(players);
         // <motd>
         Element motd = configDoc.createElement("motd");
         motd.setTextContent("§aLoadless Proxy Server");

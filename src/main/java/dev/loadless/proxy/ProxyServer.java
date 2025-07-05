@@ -77,6 +77,59 @@ public class ProxyServer {
         return null;
     }
 
+    private int[] getRealServerPlayers() {
+        // Возвращает [online, max] или null если не удалось
+        try (Socket server = new Socket(realHost, realPort)) {
+            server.setSoTimeout(2000);
+            OutputStream out = server.getOutputStream();
+            InputStream in = server.getInputStream();
+            // Handshake + Status request
+            java.io.ByteArrayOutputStream handshake = new java.io.ByteArrayOutputStream();
+            handshake.write(0x00); // packet id
+            // Protocol version (use config value)
+            writeVarInt(handshake, configManager.getVersionProtocol());
+            byte[] hostBytes = realHost.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            writeVarInt(handshake, hostBytes.length);
+            handshake.write(hostBytes);
+            handshake.write((realPort >> 8) & 0xFF);
+            handshake.write(realPort & 0xFF);
+            handshake.write(1); // next state: status
+            byte[] handshakeBytes = handshake.toByteArray();
+            writeVarInt(out, handshakeBytes.length);
+            out.write(handshakeBytes);
+            // Status request
+            out.write(0x01); out.write(0x00);
+            out.flush();
+            // Read response
+            readVarInt(in); // packet length
+            int packetId = readVarInt(in);
+            if (packetId != 0x00) return null;
+            int strLen = readVarInt(in);
+            byte[] strBytes = in.readNBytes(strLen);
+            String json = new String(strBytes, java.nio.charset.StandardCharsets.UTF_8);
+            int online = -1, max = -1;
+            // Новый парсер: ищем число до первой нецифры
+            online = extractJsonInt(json, "\"online\":");
+            max = extractJsonInt(json, "\"max\":");
+            if (online >= 0 && max >= 0) return new int[]{online, max};
+        } catch (Exception e) {
+            logger.log("[Proxy] Не удалось получить онлайн с реального сервера: " + e.getMessage());
+        }
+        return null;
+    }
+
+    private int extractJsonInt(String json, String key) {
+        int idx = json.indexOf(key);
+        if (idx < 0) return -1;
+        idx += key.length();
+        int end = idx;
+        while (end < json.length() && Character.isDigit(json.charAt(end))) end++;
+        if (end > idx) {
+            try { return Integer.parseInt(json.substring(idx, end)); } catch (Exception ignored) {}
+        }
+        return -1;
+    }
+
     private void handleClient(Socket client) {
         logger.log("[Proxy] Попытка запроса от " + client.getRemoteSocketAddress());
         try (client) {
@@ -98,20 +151,27 @@ public class ProxyServer {
                     String motdJson;
                     String versionName = configManager.getVersionName();
                     int versionProtocol = configManager.getVersionProtocol();
-                    int playersMax = configManager.getPlayersMax();
-                    int playersOnline = configManager.getPlayersOnline();
+                    int[] real = getRealServerPlayers();
+                    int playersOnline, playersMax;
+                    if (real != null) {
+                        playersOnline = real[0];
+                        playersMax = real[1];
+                    } else {
+                        playersOnline = configManager.getPlayersOnline();
+                        playersMax = configManager.getPlayersMax();
+                    }
+                    String playersSample = "[]";
                     if (favicon != null) {
-                        // Экранируем base64 для JSON (на всякий случай)
                         String safeFavicon = favicon.replace("\\", "\\\\").replace("\"", "\\\"");
                         motdJson = "{" +
                                 "\"version\":{\"name\":\"" + versionName + "\",\"protocol\":" + versionProtocol + "}," +
-                                "\"players\":{\"max\":" + playersMax + ",\"online\":" + playersOnline + ",\"sample\":[]}," +
+                                "\"players\":{\"max\":" + playersMax + ",\"online\":" + playersOnline + ",\"sample\":" + playersSample + "}," +
                                 "\"description\":{\"text\":\"" + motdManager.getMotd() + "\"}," +
                                 "\"favicon\":\"" + safeFavicon + "\"}";
                     } else {
                         motdJson = "{" +
                                 "\"version\":{\"name\":\"" + versionName + "\",\"protocol\":" + versionProtocol + "}," +
-                                "\"players\":{\"max\":" + playersMax + ",\"online\":" + playersOnline + ",\"sample\":[]}," +
+                                "\"players\":{\"max\":" + playersMax + ",\"online\":" + playersOnline + ",\"sample\":" + playersSample + "}," +
                                 "\"description\":{\"text\":\"" + motdManager.getMotd() + "\"}" +
                                 "}";
                     }
