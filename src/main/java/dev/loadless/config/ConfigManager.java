@@ -9,6 +9,8 @@ import java.io.File;
 import dev.loadless.core.Logger;
 import java.security.SecureRandom;
 import java.math.BigInteger;
+import java.util.List;
+import java.util.ArrayList;
 
 public class ConfigManager {
     private static final String CONFIG_FILE = "config.xml";
@@ -86,6 +88,20 @@ public class ConfigManager {
         offline.setTextContent("offline");
         localize.appendChild(offline);
         rootElement.appendChild(localize);
+        // <extraProxies>
+        Element extraProxies = configDoc.createElement("extraProxies");
+        Element proxy = configDoc.createElement("proxy");
+        Element listen = configDoc.createElement("listen");
+        listen.setTextContent("25570");
+        proxy.appendChild(listen);
+        Element targetHost = configDoc.createElement("targetHost");
+        targetHost.setTextContent("127.0.0.1");
+        proxy.appendChild(targetHost);
+        Element targetPort = configDoc.createElement("targetPort");
+        targetPort.setTextContent("25580");
+        proxy.appendChild(targetPort);
+        extraProxies.appendChild(proxy);
+        rootElement.appendChild(extraProxies);
         saveConfig();
     }
 
@@ -252,5 +268,30 @@ public class ConfigManager {
             configDoc.getDocumentElement().appendChild(localize);
         }
         return localize;
+    }
+
+    public static class ExtraProxyConfig {
+        public final int listenPort;
+        public final String targetHost;
+        public final int targetPort;
+        public ExtraProxyConfig(int listenPort, String targetHost, int targetPort) {
+            this.listenPort = listenPort;
+            this.targetHost = targetHost;
+            this.targetPort = targetPort;
+        }
+    }
+    public List<ExtraProxyConfig> getExtraProxies() {
+        List<ExtraProxyConfig> result = new ArrayList<>();
+        NodeList proxies = configDoc.getElementsByTagName("proxy");
+        for (int i = 0; i < proxies.getLength(); i++) {
+            Element proxy = (Element) proxies.item(i);
+            try {
+                int listen = Integer.parseInt(proxy.getElementsByTagName("listen").item(0).getTextContent());
+                String targetHost = proxy.getElementsByTagName("targetHost").item(0).getTextContent();
+                int targetPort = Integer.parseInt(proxy.getElementsByTagName("targetPort").item(0).getTextContent());
+                result.add(new ExtraProxyConfig(listen, targetHost, targetPort));
+            } catch (Exception ignored) {}
+        }
+        return result;
     }
 }
