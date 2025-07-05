@@ -35,6 +35,11 @@ public class ConfigManager {
         core.setAttribute("host", "0.0.0.0");
         core.setAttribute("port", "25565");
         rootElement.appendChild(core);
+        // Добавляем параметры реального сервера для проксирования
+        Element real = configDoc.createElement("real-server");
+        real.setAttribute("host", "127.0.0.1");
+        real.setAttribute("port", "25566");
+        rootElement.appendChild(real);
         saveConfig();
     }
 
@@ -93,6 +98,26 @@ public class ConfigManager {
             } catch (Exception ignored) {}
         }
         return 25565;
+    }
+
+    public String getRealServerHost() {
+        NodeList realList = configDoc.getElementsByTagName("real-server");
+        if (realList.getLength() > 0) {
+            Element real = (Element) realList.item(0);
+            return real.getAttribute("host");
+        }
+        return "127.0.0.1";
+    }
+
+    public int getRealServerPort() {
+        NodeList realList = configDoc.getElementsByTagName("real-server");
+        if (realList.getLength() > 0) {
+            Element real = (Element) realList.item(0);
+            try {
+                return Integer.parseInt(real.getAttribute("port"));
+            } catch (Exception ignored) {}
+        }
+        return 25566;
     }
 
     // Получить или создать секцию настроек только для этого модуля

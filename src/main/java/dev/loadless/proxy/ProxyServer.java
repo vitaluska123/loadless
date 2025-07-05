@@ -12,12 +12,16 @@ public class ProxyServer {
     private final InetSocketAddress bindAddress;
     private final MotdManager motdManager;
     private final Logger logger;
+    private final String realHost;
+    private final int realPort;
     private volatile boolean running = false;
 
-    public ProxyServer(String host, int port, MotdManager motdManager, Logger logger) {
+    public ProxyServer(String host, int port, MotdManager motdManager, Logger logger, String realHost, int realPort) {
         this.bindAddress = new InetSocketAddress(host, port);
         this.motdManager = motdManager;
         this.logger = logger;
+        this.realHost = realHost;
+        this.realPort = realPort;
     }
 
     public void start() {
@@ -74,8 +78,6 @@ public class ProxyServer {
     }
 
     private void proxyToRealServer(Socket client, byte[] handshake, InputStream clientIn, OutputStream clientOut) {
-        String realHost = motdManager.getConfigManager().getModuleParam("loadless-core", "realServerHost", "127.0.0.1");
-        int realPort = Integer.parseInt(motdManager.getConfigManager().getModuleParam("loadless-core", "realServerPort", "25566"));
         try (Socket server = new Socket(realHost, realPort)) {
             server.setSoTimeout(5000);
             logger.log("[Proxy] Проксируем к реальному серверу: " + realHost + ":" + realPort);

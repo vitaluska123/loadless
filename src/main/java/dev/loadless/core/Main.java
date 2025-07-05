@@ -28,8 +28,10 @@ public class Main {
             moduleLoader.loadModules();
             String host = configManager.getCoreHost();
             int port = configManager.getCorePort();
+            String realHost = configManager.getRealServerHost();
+            int realPort = configManager.getRealServerPort();
             MotdManager motdManager = new MotdManager(configManager);
-            ProxyServer proxyServer = new ProxyServer(host, port, motdManager, logger);
+            ProxyServer proxyServer = new ProxyServer(host, port, motdManager, logger, realHost, realPort);
             proxyServer.start();
         } catch (Exception e) {
             System.err.println("Ошибка при инициализации: " + e.getMessage());
