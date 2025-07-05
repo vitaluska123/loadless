@@ -7,6 +7,9 @@ import java.net.ServerSocket;
 import java.io.InputStream;
 import java.io.OutputStream;
 import dev.loadless.core.Logger;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Base64;
 
 public class ProxyServer {
     private final InetSocketAddress bindAddress;
@@ -45,6 +48,20 @@ public class ProxyServer {
         }
     }
 
+    private String getFaviconBase64() {
+        try {
+            // Путь к config.xml
+            Path configPath = Path.of("run", "config.xml");
+            Path iconPath = configPath.getParent().resolve("server-icon.png");
+            if (Files.exists(iconPath)) {
+                byte[] iconBytes = Files.readAllBytes(iconPath);
+                String base64 = Base64.getEncoder().encodeToString(iconBytes);
+                return "data:image/png;base64," + base64;
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
     private void handleClient(Socket client) {
         logger.log("[Proxy] Попытка запроса от " + client.getRemoteSocketAddress());
         try (client) {
@@ -62,7 +79,13 @@ public class ProxyServer {
                 int packetId = in.read();
                 if (packetId == 0x00) {
                     logger.log("[Proxy] Ping-запрос (MOTD) от " + client.getRemoteSocketAddress());
-                    String motdJson = "{\"version\":{\"name\":\"Loadless\",\"protocol\":754},\"players\":{\"max\":100,\"online\":0},\"description\":{\"text\":\"" + motdManager.getMotd() + "\"}}";
+                    String favicon = getFaviconBase64();
+                    String motdJson;
+                    if (favicon != null) {
+                        motdJson = "{\"version\":{\"name\":\"Loadless\",\"protocol\":754},\"players\":{\"max\":100,\"online\":0},\"description\":{\"text\":\"" + motdManager.getMotd() + "\"},\"favicon\":\"" + favicon + "\"}";
+                    } else {
+                        motdJson = "{\"version\":{\"name\":\"Loadless\",\"protocol\":754},\"players\":{\"max\":100,\"online\":0},\"description\":{\"text\":\"" + motdManager.getMotd() + "\"}}";
+                    }
                     byte[] response = createStatusResponse(motdJson);
                     out.write(response);
                     out.flush();
