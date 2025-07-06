@@ -108,6 +108,19 @@ public class LuaModuleLoader {
                                 dev.loadless.core.Main.registerLuaCommand((dev.loadless.api.ConsoleCommand) new LuaConsoleCommand(cmdName, desc, globals));
                             }
                         }
+                        // Парсим middleware
+                        if (manifest.has("middleware")) {
+                            var arr = manifest.getJSONArray("middleware");
+                            for (int i = 0; i < arr.length(); i++) {
+                                var mw = arr.getJSONObject(i);
+                                String event = mw.optString("event", "");
+                                String handler = mw.optString("handler", "");
+                                int priority = mw.has("priority") ? mw.getInt("priority") : 100;
+                                if (!event.isEmpty() && !handler.isEmpty()) {
+                                    middlewareHandlers.add(new MiddlewareHandler(event, handler, priority, globals));
+                                }
+                            }
+                        }
                         System.out.println("[LuaModuleLoader] Найден Lua-модуль: " + name + " v" + version + " (" + moduleFile.getName() + ")");
                         if (!commands.isEmpty()) {
                             System.out.println("[LuaModuleLoader] Команды модуля: " + String.join(", ", commands));
@@ -168,6 +181,19 @@ public class LuaModuleLoader {
                             }
                         }
                         dev.loadless.core.Main.registerLuaCommand((dev.loadless.api.ConsoleCommand) new LuaConsoleCommand(cmdName, desc, globals));
+                    }
+                }
+                // Парсим middleware
+                if (manifest.has("middleware")) {
+                    var arr = manifest.getJSONArray("middleware");
+                    for (int i = 0; i < arr.length(); i++) {
+                        var mw = arr.getJSONObject(i);
+                        String event = mw.optString("event", "");
+                        String handler = mw.optString("handler", "");
+                        int priority = mw.has("priority") ? mw.getInt("priority") : 100;
+                        if (!event.isEmpty() && !handler.isEmpty()) {
+                            middlewareHandlers.add(new MiddlewareHandler(event, handler, priority, globals));
+                        }
                     }
                 }
                 System.out.println("[LuaModuleLoader] Найден Lua-модуль: " + name + " v" + version + " (" + moduleFile.getName() + ")");
@@ -249,5 +275,29 @@ public class LuaModuleLoader {
             } catch (Exception ignored) {}
         }
         return all;
+    }
+
+    // Класс для хранения middleware-обработчика
+    public static class MiddlewareHandler {
+        public final String event;
+        public final String handler;
+        public final int priority;
+        public final org.luaj.vm2.Globals globals;
+        public MiddlewareHandler(String event, String handler, int priority, org.luaj.vm2.Globals globals) {
+            this.event = event;
+            this.handler = handler;
+            this.priority = priority;
+            this.globals = globals;
+        }
+    }
+    private final List<MiddlewareHandler> middlewareHandlers = new ArrayList<>();
+
+    public List<MiddlewareHandler> getMiddlewareHandlers(String event) {
+        List<MiddlewareHandler> result = new ArrayList<>();
+        for (var m : middlewareHandlers) {
+            if (m.event.equals(event)) result.add(m);
+        }
+        result.sort(java.util.Comparator.comparingInt(h -> h.priority));
+        return result;
     }
 }

@@ -94,6 +94,24 @@ end
 - Все команды, указанные в manifest.json, автоматически регистрируются в консоли
 - Аргументы команд передаются в onCommand как Lua-таблица
 
+## Middleware (обработчики событий)
+- Lua-модули могут объявлять middleware-обработчики для событий ядра (например, onPing, onLogin, onPacket и др.)
+- В manifest.json добавьте поле `middleware`:
+```json
+"middleware": [
+  { "event": "onPing", "handler": "myMotdHandler", "priority": 10 },
+  { "event": "onPing", "handler": "myOtherHandler", "priority": 20 }
+]
+```
+- В main.lua реализуйте функции-обработчики:
+```lua
+function myMotdHandler(event)
+    event.motd = "MOTD изменён через middleware!"
+end
+```
+- Приоритет (priority) определяет порядок вызова (чем меньше — тем раньше). Если веса совпадают, порядок не гарантируется.
+- Middleware могут изменять данные события (motd, favicon, kick и др.)
+
 ---
 
 **Loadless** — лёгкое решение для управления статусом и проксированием Minecraft-сервера без лишних сложностей!

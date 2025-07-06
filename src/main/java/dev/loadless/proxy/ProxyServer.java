@@ -14,6 +14,7 @@ import dev.loadless.config.ConfigManager;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import java.time.Instant;
+import dev.loadless.modules.LuaModuleLoader;
 
 public class ProxyServer {
     private final InetSocketAddress bindAddress;
@@ -26,6 +27,11 @@ public class ProxyServer {
 
     // Потокобезопасный список подключившихся пользователей
     private final ConcurrentHashMap<String, ConnectedUser> connectedUsers = new ConcurrentHashMap<>();
+
+    private LuaModuleLoader luaModuleLoader;
+    public void setLuaModuleLoader(LuaModuleLoader loader) {
+        this.luaModuleLoader = loader;
+    }
 
     public ProxyServer(String host, int port, MotdManager motdManager, Logger logger, String realHost, int realPort, ConfigManager configManager) {
         this.bindAddress = new InetSocketAddress(host, port);
@@ -235,6 +241,30 @@ public class ProxyServer {
                         out.flush();
                     } catch (Exception ignored) {
                         // Если ping не пришёл — это нормально, просто закрываем соединение
+                    }
+                    // --- интеграция Lua-middleware ---
+                    if (luaModuleLoader != null) {
+                        var pingEvent = new java.util.HashMap<String, Object>();
+                        pingEvent.put("motd", motdManager.getMotd());
+                        pingEvent.put("favicon", getFaviconBase64());
+                        for (var mw : luaModuleLoader.getMiddlewareHandlers("onPing")) {
+                            var handler = mw.globals.get(mw.handler);
+                            if (!handler.isnil() && handler.isfunction()) {
+                                try {
+                                    org.luaj.vm2.LuaTable eventTable = new org.luaj.vm2.LuaTable();
+                                    for (var e : pingEvent.entrySet()) {
+                                        eventTable.set(e.getKey(), org.luaj.vm2.LuaValue.valueOf(e.getValue() != null ? e.getValue().toString() : ""));
+                                    }
+                                    handler.call(eventTable);
+                                    // После вызова можно обновить значения из eventTable
+                                    if (!eventTable.get("motd").isnil()) pingEvent.put("motd", eventTable.get("motd").tojstring());
+                                    if (!eventTable.get("favicon").isnil()) pingEvent.put("favicon", eventTable.get("favicon").tojstring());
+                                } catch (Exception ex) {
+                                    System.err.println("[LuaMiddleware] Ошибка в " + mw.handler + ": " + ex.getMessage());
+                                }
+                            }
+                        }
+                        // Использовать pingEvent.get("motd") и pingEvent.get("favicon") для ответа клиенту
                     }
                     return;
                 }

@@ -43,6 +43,7 @@ public class Main {
                 int realPort = configManager.getRealServerPort();
                 MotdManager motdManager = new MotdManager(configManager);
                 ProxyServer proxyServer = new ProxyServer(host, port, motdManager, logger, realHost, realPort, configManager);
+                proxyServer.setLuaModuleLoader(luaModuleLoader);
                 proxyServer.start();
 
                 // --- Console commands ---
@@ -114,3 +115,26 @@ public class Main {
         }
     }
 }
+                // Пример: вызов middleware для события onPing (MOTD)
+                // (реальную интеграцию вставить в ProxyServer или нужное место)
+                /*
+                var pingEvent = new java.util.HashMap<String, Object>();
+                pingEvent.put("motd", motdManager.getMotd());
+                pingEvent.put("favicon", motdManager.getFavicon());
+                for (var mw : luaModuleLoader.getMiddlewareHandlers("onPing")) {
+                    var handler = mw.globals.get(mw.handler);
+                    if (!handler.isnil() && handler.isfunction()) {
+                        try {
+                            // Передаём event как LuaTable
+                            org.luaj.vm2.LuaTable eventTable = new org.luaj.vm2.LuaTable();
+                            for (var e : pingEvent.entrySet()) {
+                                eventTable.set(e.getKey(), org.luaj.vm2.LuaValue.valueOf(e.getValue().toString()));
+                            }
+                            handler.call(eventTable);
+                        } catch (Exception ex) {
+                            System.err.println("[LuaMiddleware] Ошибка в " + mw.handler + ": " + ex.getMessage());
+                        }
+                    }
+                }
+                // После вызова можно получить motd: pingEvent.get("motd")
+                */
