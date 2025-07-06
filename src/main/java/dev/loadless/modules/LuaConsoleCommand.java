@@ -31,7 +31,11 @@ public class LuaConsoleCommand implements ConsoleCommand {
         LuaValue onCommand = globals.get("onCommand");
         if (!onCommand.isnil()) {
             LuaValue luaCmd = LuaValue.valueOf(name);
-            LuaValue luaArgs = org.luaj.vm2.lib.jse.CoerceJavaToLua.coerce(args);
+            // Преобразуем String[] args в LuaTable
+            org.luaj.vm2.LuaTable luaArgs = new org.luaj.vm2.LuaTable();
+            for (int i = 0; i < args.length; i++) {
+                luaArgs.set(i + 1, LuaValue.valueOf(args[i]));
+            }
             try {
                 org.luaj.vm2.Varargs result = onCommand.invoke(LuaValue.varargsOf(new LuaValue[]{luaCmd, luaArgs}));
                 if (result.narg() > 0) {
