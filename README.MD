@@ -1,11 +1,11 @@
 # Loadless
 
-Loadless — это легковесный Minecraft-прокси, не требующий Velocity или BungeeCord. Позволяет динамически менять MOTD, favicon, проксировать игроков и расширяться через модули.
+Loadless — это легковесный Minecraft-прокси, не требующий Velocity или BungeeCord. Позволяет динамически менять MOTD, favicon, проксировать игроков и расширяться через Lua-модули.
 
 ## Возможности
 - **Динамический MOTD** и favicon (server-icon.png) через config.xml и HTTP API (в разработке)
 - **Прозрачное проксирование**: игроки могут подключаться и играть через Loadless
-- **Модульность**: поддержка Java- и Lua-модулей, изоляция, API для расширения
+- **Модульность**: поддержка Lua-модулей (ZIP-архивы и папки), изоляция, API для расширения
 - **Гибкая настройка**: адреса и порты прокси и реального сервера настраиваются через config.xml
 - **Лёгкость**: не требует тяжёлых решений, минимальные зависимости, быстрый запуск
 - **Подробное логирование**: все события пишутся в logs/latest.log и по дате
@@ -28,9 +28,9 @@ java -jar loadless-1.0.0.jar
 ```
 
 ## Модульность
-- Java-модули: JAR-файлы в папке modules
-- Lua-модули: ZIP-архивы (структура TBD)
+- Lua-модули: ZIP-архивы или папки с manifest.json и main.lua в папке modules
 - Модули изолированы, доступ к настройкам только через API
+- Java-модули не поддерживаются (см. историю проекта)
 
 ## Прокси-сервер
 - Принимает ping-запросы Minecraft, возвращает кастомный MOTD и favicon
@@ -43,21 +43,56 @@ java -jar loadless-1.0.0.jar
 ## Планы
 - [x] Прозрачное проксирование и MOTD
 - [x] Favicon (server-icon.png)
-- [x] Модульность (Java/Lua)
+- [x] Модульность (Lua ZIP/папки)
 - [ ] HTTP API для управления статусом
-- [ ] Примеры модулей и документация
+- [x] Примеры Lua-модулей и документация
 - [ ] Юнит-тесты ядра
 
-## Как подключить модуль
-1. Скомпилируйте класс ExampleModule в JAR (или несколько классов, если модуль сложнее).
-2. Поместите JAR-файл в папку `modules` в директории Loadless.
-3. Перезапустите Loadless — модуль будет автоматически загружен, команда появится в консоли.
+## Как подключить Lua-модуль
+1. Создайте папку или ZIP-архив с двумя файлами: `manifest.json` и `main.lua`.
+2. Пример manifest.json:
+```json
+{
+  "name": "HelloLua",
+  "version": "1.0.0",
+  "author": "yourname",
+  "description": "Пример Lua-модуля для Loadless",
+  "commands": [
+    { "name": "hello-lua", "description": "Приветствие из Lua-модуля" },
+    { "name": "lua-time", "description": "Показать текущее время" },
+    { "name": "lua-echo", "description": "Повторить аргументы" }
+  ]
+}
+```
+3. Пример main.lua:
+```lua
+function onLoad()
+    print("[HelloLua] Lua-модуль загружен!")
+end
 
-## Структура Java-модуля
-- Класс должен реализовывать интерфейс `dev.loadless.api.Module`.
-- Метод `onLoad(ConsoleCommandManager)` вызывается при загрузке модуля.
-- Для регистрации консольных команд используйте `commandManager.register(...)`.
-- Можно использовать любые зависимости, если они включены в JAR (fat jar/shadow jar).
+function onUnload()
+    print("[HelloLua] Lua-модуль выгружен!")
+end
+
+function onCommand(cmd, args)
+    if cmd == "hello-lua" then
+        return "Привет из Lua-модуля!"
+    elseif cmd == "lua-time" then
+        return "Текущее время: " .. os.date("%Y-%m-%d %H:%M:%S")
+    elseif cmd == "lua-echo" then
+        return table.concat(args, " ")
+    end
+    return false
+end
+```
+4. Поместите папку или ZIP-модуль в папку `modules` в директории Loadless.
+5. Перезапустите Loadless — модуль будет автоматически загружен, команды появятся в help и будут работать в консоли.
+
+## Структура Lua-модуля
+- `manifest.json` — описание модуля и команд (name, description, version, commands)
+- `main.lua` — основной скрипт, реализует функции onLoad, onUnload, onCommand
+- Все команды, указанные в manifest.json, автоматически регистрируются в консоли
+- Аргументы команд передаются в onCommand как Lua-таблица
 
 ---
 
