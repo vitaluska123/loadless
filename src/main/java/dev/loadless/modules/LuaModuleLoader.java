@@ -47,7 +47,13 @@ public class LuaModuleLoader {
                 if (manifest.has("commands")) {
                     var arr = manifest.getJSONArray("commands");
                     for (int i = 0; i < arr.length(); i++) {
-                        commands.add(arr.getString(i));
+                        var cmdObj = arr.get(i);
+                        if (cmdObj instanceof org.json.JSONObject) {
+                            String nameCmd = ((org.json.JSONObject)cmdObj).optString("name", "");
+                            if (!nameCmd.isEmpty()) commands.add(nameCmd);
+                        } else if (cmdObj instanceof String) {
+                            commands.add((String)cmdObj);
+                        }
                     }
                 }
                 // Распаковка main.lua во временный файл
@@ -56,8 +62,9 @@ public class LuaModuleLoader {
                     Files.copy(is, tempLua, StandardCopyOption.REPLACE_EXISTING);
                 }
                 // Интеграция с LuaJ: запуск main.lua, регистрация API, вызов onLoad
+                org.luaj.vm2.Globals globals = null;
                 try {
-                    org.luaj.vm2.Globals globals = org.luaj.vm2.lib.jse.JsePlatform.standardGlobals();
+                    globals = org.luaj.vm2.lib.jse.JsePlatform.standardGlobals();
                     org.luaj.vm2.LuaValue chunk = globals.loadfile(tempLua.toString());
                     chunk.call();
                     // Вызов onLoad, если определён
@@ -69,6 +76,27 @@ public class LuaModuleLoader {
                 } catch (Exception e) {
                     System.err.println("[LuaModuleLoader] Ошибка LuaJ в модуле: " + name + ": " + e.getMessage());
                     e.printStackTrace();
+                }
+                // Регистрируем команды Lua-модуля как ConsoleCommand
+                if (globals != null && !commands.isEmpty()) {
+                    for (String cmdName : commands) {
+                        String desc = null;
+                        // ищем описание в manifest.json (если новый формат)
+                        if (manifest.has("commands")) {
+                            var arr = manifest.getJSONArray("commands");
+                            for (int i = 0; i < arr.length(); i++) {
+                                var cmdObj = arr.get(i);
+                                if (cmdObj instanceof org.json.JSONObject) {
+                                    String n = ((org.json.JSONObject)cmdObj).optString("name", "");
+                                    if (n.equals(cmdName)) {
+                                        desc = ((org.json.JSONObject)cmdObj).optString("description", "");
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        dev.loadless.core.Main.registerLuaCommand((dev.loadless.api.ConsoleCommand) new LuaConsoleCommand(cmdName, desc, globals));
+                    }
                 }
                 System.out.println("[LuaModuleLoader] Найден Lua-модуль: " + name + " v" + version + " (" + zipFile.getName() + ")");
                 if (!commands.isEmpty()) {
@@ -114,6 +142,37 @@ public class LuaModuleLoader {
                     var arr = manifest.getJSONArray("commands");
                     for (int i = 0; i < arr.length(); i++) {
                         all.add(arr.getString(i));
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return all;
+    }
+
+    // Получить список команд с описаниями из manifest.json для всех Lua-модулей
+    public List<String> getManifestCommandDescriptions() {
+        List<String> all = new ArrayList<>();
+        if (!modulesDir.exists() || !modulesDir.isDirectory()) return all;
+        File[] files = modulesDir.listFiles((dir, name) -> name.endsWith(".zip"));
+        if (files == null) return all;
+        for (File zipFile : files) {
+            try (ZipFile zip = new ZipFile(zipFile)) {
+                ZipEntry manifestEntry = zip.getEntry("manifest.json");
+                if (manifestEntry == null) continue;
+                String manifestJson;
+                try (InputStream is = zip.getInputStream(manifestEntry)) {
+                    manifestJson = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                }
+                JSONObject manifest = new JSONObject(manifestJson);
+                if (manifest.has("commands")) {
+                    var arr = manifest.getJSONArray("commands");
+                    for (int i = 0; i < arr.length(); i++) {
+                        var cmdObj = arr.getJSONObject(i);
+                        String name = cmdObj.optString("name", "");
+                        String desc = cmdObj.optString("description", "");
+                        if (!name.isEmpty()) {
+                            all.add(name + (desc.isEmpty() ? "" : (" - " + desc)));
+                        }
                     }
                 }
             } catch (Exception ignored) {}

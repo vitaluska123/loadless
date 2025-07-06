@@ -14,6 +14,13 @@ import java.io.File;
 import java.util.Scanner;
 
 public class Main {
+    private static ConsoleCommandManager staticCmdManager;
+    public static void registerLuaCommand(ConsoleCommand cmd) {
+        if (staticCmdManager != null) {
+            staticCmdManager.register(cmd);
+        }
+    }
+
     public static void main(String[] args) {
         try {
             // Проверка EULA до любой инициализации
@@ -41,6 +48,7 @@ public class Main {
 
                 // --- Console commands ---
                 ConsoleCommandManager cmdManager = new ConsoleCommandManager();
+                staticCmdManager = cmdManager;
                 // help
                 cmdManager.register(new ConsoleCommand() {
                     public String getName() { return "help"; }
@@ -50,10 +58,13 @@ public class Main {
                         for (ConsoleCommand c : cmdManager.getAll()) {
                             sb.append(c.getName()).append(" - ").append(c.getDescription()).append("\n");
                         }
-                        // Выводим команды Lua-модулей из manifest.json
-                        var luaCommands = luaModuleLoader.getManifestCommands();
-                        if (!luaCommands.isEmpty()) {
-                            sb.append("[Lua-модули] ").append(String.join(", ", luaCommands)).append("\n");
+                        // Выводим команды Lua-модулей с описаниями из manifest.json
+                        var luaCmds = luaModuleLoader.getManifestCommandDescriptions();
+                        if (!luaCmds.isEmpty()) {
+                            sb.append("\n[Lua-модули]\n");
+                            for (String cmd : luaCmds) {
+                                sb.append(cmd).append("\n");
+                            }
                         }
                         return sb.toString();
                     }
