@@ -33,9 +33,14 @@ public class LuaConsoleCommand implements ConsoleCommand {
             LuaValue luaCmd = LuaValue.valueOf(name);
             LuaValue luaArgs = org.luaj.vm2.lib.jse.CoerceJavaToLua.coerce(args);
             try {
-                Varargs result = onCommand.invoke(LuaValue.varargsOf(new LuaValue[]{luaCmd, luaArgs}));
-                if (result.narg() > 0 && result.arg1().toboolean()) {
-                    return null; // handled in Lua
+                org.luaj.vm2.Varargs result = onCommand.invoke(LuaValue.varargsOf(new LuaValue[]{luaCmd, luaArgs}));
+                if (result.narg() > 0) {
+                    LuaValue v = result.arg1();
+                    if (v.isstring()) {
+                        return v.tojstring(); // если onCommand вернул строку — вывести её
+                    } else if (v.toboolean()) {
+                        return null; // true — команда обработана, но ничего не выводить
+                    }
                 }
             } catch (Exception e) {
                 return "[Lua] Ошибка выполнения команды: " + e.getMessage();

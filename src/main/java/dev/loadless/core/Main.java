@@ -37,7 +37,6 @@ public class Main {
                 modulesManager.createModulesDir();
                 ConfigManager configManager = new ConfigManager(logger);
                 LuaModuleLoader luaModuleLoader = new LuaModuleLoader(new File("modules"));
-                luaModuleLoader.loadModules();
                 String host = configManager.getCoreHost();
                 int port = configManager.getCorePort();
                 String realHost = configManager.getRealServerHost();
@@ -49,6 +48,7 @@ public class Main {
                 // --- Console commands ---
                 ConsoleCommandManager cmdManager = new ConsoleCommandManager();
                 staticCmdManager = cmdManager;
+                luaModuleLoader.loadModules();
                 // help
                 cmdManager.register(new ConsoleCommand() {
                     public String getName() { return "help"; }
